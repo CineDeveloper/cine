@@ -1,0 +1,61 @@
+func constIntToOperand(int, data, :compiledData)
+    rules
+        final = int == Token & data == Data & compiledData == CompiledData
+        result = Operand
+    result:type = OperandType{baseType: Token{value: "UInt64"}}
+    intType .= result.type.compile(data, compiledData)
+    result:value = select(int[][0].digit?(), "(uint64_t)".join(int[], "ull"), int[])
+    result:expressionForErrors = int
+    result:typeNumber = intType.typeNumber
+    result:cType = intType.cType
+    result:constant = true
+
+func constStringToOperand(string, data, :compiledData)
+    rules
+        final = string == Token & data == Data & compiledData == CompiledData
+        result = Operand
+    result:type = OperandType{baseType: Token{value: "Slice"}, arguments: [OperandType]{OperandType{baseType: Token{value: "UInt8"}}}}
+    stringType .= result.type.compile(data, compiledData)
+    stringLength .= "strlen(".join(string[], ")")
+    result:value = "(".join(stringType.cType, "){.length = ", stringLength, ", .capacity = ", stringLength, ", .array = (uint8_t*){0}, .items = (uint8_t*)", string[], ", .initCapacity = 0, .useCounter = (uint64_t*){0}, .isString = true}")
+    result:expressionForErrors = string
+    result:typeNumber = stringType.typeNumber
+    result:cType = stringType.cType
+    result:haveLink = true
+    result:constant = true
+
+func constBoolToOperand(bool, data, :compiledData)
+    rules
+        final = bool == Token & data == Data & compiledData == CompiledData
+        result = Operand
+    result:type = OperandType{baseType: Token{value: "Bool"}}
+    boolType .= result.type.compile(data, compiledData)
+    result:value = bool[]
+    result:expressionForErrors = bool
+    result:typeNumber = boolType.typeNumber
+    result:cType = boolType.cType
+    result:constant = true
+
+func constDoubleToOperand(double, data, :compiledData)
+    rules
+        final = double == Token & data == Data & compiledData == CompiledData
+        result = Operand
+    result:type = OperandType{baseType: Token{value: "Double"}}
+    doubleType .= result.type.compile(data, compiledData)
+    result:value = double[]
+    result:expressionForErrors = double
+    result:typeNumber = doubleType.typeNumber
+    result:cType = doubleType.cType
+    result:constant = true
+
+func constCharToOperand(char, data, :compiledData)
+    rules
+        final = char == Token & data == Data & compiledData == CompiledData
+        result = Operand
+    result:type = OperandType{baseType: Token{value: "UInt8"}}
+    charType .= result.type.compile(data, compiledData)
+    result:value = "(uint8_t)" + char[]
+    result:expressionForErrors = char
+    result:typeNumber = charType.typeNumber
+    result:cType = charType.cType
+    result:constant = true

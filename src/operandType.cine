@@ -1,0 +1,277 @@
+type OperandType
+    baseType Token
+    arguments [OperandType]
+    functionType FunctionType
+
+rules
+    1 = type == OperandType
+    join 1 Equal
+
+func compile(type, data, :compiledData)
+    rules
+        final = type == OperandType & data == Data & compiledData == CompiledData
+        result = CompiledType
+    compilingTypes := Set([UInt8])
+    result = type.compile(data, compiledData, compilingTypes)
+
+func compile(type, data, :compiledData, :compilingTypes)
+    rules
+        final = type == OperandType & data == Data & compiledData == CompiledData & compilingTypes == Set([UInt8])
+        result = CompiledType
+    typeToken .= type.toToken()
+    if compilingTypes[typeToken[]]
+        then errorRecursiveType(typeToken)
+    if compiledType .= compiledData.types[typeToken[]]; compiledType.item?()
+        then return compiledType[]
+    compilingTypes += typeToken[]
+    cStructDef := ""
+    subTypes := [UInt64]
+    if type.function?()
+        then
+            result:typeNumber = compiledData.types.getLength()
+            result:haveLink = false
+            result:align = 7.convertTo(UInt8)
+            result:cType = "t" + result.typeNumber.toString()
+            compiledData:types:add(typeToken[], result)
+            cStructDef = "typedef "
+            if type.functionType.result.getLength() == 0
+                then cStructDef += "void "
+                else
+                    resultType .= type.functionType.result[0].compile(data, compiledData)
+                    cStructDef:join(resultType.cType, " ")
+            cStructDef:join("(*", result.cType, ")(")
+            if type.functionType.arguments.getLength() != 0
+                then
+                    parse _, argument <- type.functionType.arguments
+                        argumentType .= argument.type.compile(data, compiledData)
+                        cStructDef += argumentType.cType
+                        if argument.mutable
+                            then cStructDef += '*'
+                        cStructDef += ", "
+                    cStructDef = cStructDef.getAllExceptLastN(2)
+            cStructDef += ");\n"
+        else
+            baseType .= data.getType(type.baseType)
+            if baseType.arguments.getLength() != type.arguments.getLength()
+                then errorWrongType(type.toToken())
+            result:typeNumber = compiledData.types.getLength()
+            if baseType.c
+                then
+                    result:align = baseType.align
+                    result:cType = baseType.cType.replace("^^", "t" + result.typeNumber.toString())
+                    result:haveLink = baseType.baseHaveLink
+                    result:c = true
+                else result:cType = "struct t" + result.typeNumber.toString()
+            compiledData:types:add(typeToken[], result)
+            if baseType.c
+                then
+                    if baseType.cStructDef != ""
+                        then cStructDef = typeToken.replaceValue(baseType.cStructDef).toRealCStructDef(result.typeNumber, baseType.arguments, type.arguments, data, compiledData, compilingTypes) + ";\n"
+                    if !result.haveLink
+                        then parse _, argument <- type.arguments
+                            argumentType .= argument.compile(data, compiledData, compilingTypes)
+                            if argumentType.haveLink
+                                then
+                                    result:haveLink = true
+                                    break
+                    parse _, cLib <- baseType.cLibs
+                        if !compiledData.cLibs.contain?(cLib)
+                            then compiledData:cLibs:join(cLib, "\n")
+                else
+                    cStructDef = result.cType + " {"
+                    sortedMembers := [[UInt8]].dummy(baseType.members.getLength())
+                    parse _, member <- baseType.members
+                        memberType .= member.type.toRealOperandType(baseType.arguments, type.arguments)
+                        if memberType.empty?()
+                            then errorWrongType(member.type.toToken())
+                        isSlice .= memberType[].baseType[] == "Slice"
+                        memberCompiledType .= select(isSlice, memberType[].compile(data, compiledData), memberType[].compile(data, compiledData, compilingTypes))
+                        if !(isSlice || memberType[].function?())
+                            then subTypes += memberCompiledType.typeNumber
+                        result:align = max(result.align, memberCompiledType.align)
+                        result:haveLink = result.haveLink || memberCompiledType.haveLink
+                        sortedMembers += memberCompiledType.align.toString().join(memberCompiledType.cType, " ", member.name[])
+                        result:members:add(member.name[], memberType[])
+                    sortedMembers:sort(@func(private_memberLessFunc)([UInt8], [UInt8]))
+                    parse _, member <- sortedMembers
+                        cStructDef:join(member.getAllExceptFirst(), "_; ")
+                    cStructDef = cStructDef.getAllExceptLast()
+                    cStructDef += "};\n"
+    if type.baseType[] == "Slice" || type.function?()
+        then compiledData:cSliceTypes += cStructDef
+        else compiledData:cTypes += Triple(UInt64, [UInt64], [UInt8]).create(result.typeNumber, subTypes, cStructDef)
+    compiledData:types:add(typeToken[], result)
+    compilingTypes -= typeToken[]
+    result:executeGlobalRules(type, data, compiledData)
+
+func private_memberLessFunc(a, b)
+    rules
+        final = a == b & a == [UInt8]
+        result = Bool
+    result = (a >= b || a[0] == '0') && b[0] != '0'
+
+func function?(type)
+    rules
+        final = type == OperandType
+        result = Bool
+    result = type.baseType[] == "@"
+
+func toToken(type)
+    rules
+        final = type == OperandType
+        result = Token
+    if type.function?()
+        then
+            result = type.baseType
+            result:value += '('
+            parse _, argument <- type.functionType.arguments
+                if argument.mutable
+                    then result:value += ':'
+                result:value:join(argument.type.toToken()[], ",")
+            if result[].getLast() == ','
+                then result:value = result[].getAllExceptLast() + ')'
+            if type.functionType.result.getLength() == 1
+                then result:value:join(" -> ", type.functionType.result[0].toToken()[])
+        else
+            isSlice .= type.baseType[] == "Slice"
+            result = type.baseType
+            if isSlice
+                then result:value = "["
+            if type.arguments.getLength() != 0
+                then
+                    if !isSlice
+                        then result:value += '('
+                    parse _, argument <- type.arguments
+                        result:value:join(argument.toToken()[], ",")
+                    result:value:setLast(select(isSlice, ']', ')'))
+
+func toRealCStructDef(cStructDef, typeNumber, argumentsNames, argumentsTypes, data, :compiledData, :compilingTypes)
+    rules
+        1 = cStructDef == Token & typeNumber == UInt64 & argumentsNames == [[UInt8]] & argumentsTypes == [OperandType]
+        2 = data == Data & compiledData == CompiledData & compilingTypes == Set([UInt8])
+        final = 1 & 2
+        result = [UInt8]
+    if cStructDef[].contain?("##")
+        then
+            parts .= cStructDef[].split("##")
+            result = parts[0]
+            for partIndex := 1; partIndex < parts.getLength(); partIndex += 2
+                argumentFound := false
+                argumentNameInType .= parts[partIndex]
+                parse argumentIndex, argumentName <- argumentsNames
+                    if argumentName == argumentNameInType
+                        then
+                            result:join(argumentsTypes[argumentIndex].compile(data, compiledData, compilingTypes).cType, parts[partIndex + 1])
+                            argumentFound = true
+                            break
+                if !argumentFound
+                    then errorNotExist(cStructDef.replaceValue(argumentNameInType), "type argument")
+        else result = cStructDef[]
+    result = result.replace("^^", "t" + typeNumber.toString())
+
+func toRealOperandType(type, argumentsNames, argumentsTypes)
+    rules
+        final = type == OperandType & argumentsNames == [[UInt8]] & argumentsTypes == [OperandType]
+        result = Box(OperandType)
+    resultOperand := OperandType
+    mif
+        type.baseType[][0].upper?()
+            resultOperand:baseType = type.baseType
+            resultOperand:arguments = [OperandType].init(type.arguments.getLength())
+            parse index, argument <- type.arguments
+                if argumentRealType .= argument.toRealOperandType(argumentsNames, argumentsTypes); argumentRealType.item?()
+                    then resultOperand:arguments:setItem(index, argumentRealType[])
+                    else return
+        type.baseType[][0].lower?()
+            indexOfArgumentIndex := type.baseType[].look('[')
+            argumentInOperandType .= select(indexOfArgumentIndex.item?(), type.baseType[].getFirstN(indexOfArgumentIndex[]), type.baseType[])
+            parse index, argument <- argumentsNames
+                if argument == argumentInOperandType
+                    then
+                        resultOperand = argumentsTypes[index]
+                        break
+            if indexOfArgumentIndex.item?()
+                then for
+                    endIndexOfIndex .= type.baseType[].getAllExceptFirstN(indexOfArgumentIndex[] + 1).look(']')[] + indexOfArgumentIndex[] + 1
+                    argumentIndex .= type.baseType[].getSlice(indexOfArgumentIndex[] + 1, endIndexOfIndex)
+                    if argumentIndex == "-"
+                        then if resultOperand.function?()
+                            then resultOperand = resultOperand.functionType.result[0]
+                            else return
+                        else
+                            index .= UInt64.fromString(argumentIndex)[]
+                            if resultOperand.function?()
+                                then if index < resultOperand.functionType.arguments.getLength()
+                                    then resultOperand = resultOperand.functionType.arguments[index].type
+                                    else return
+                                else if index < resultOperand.arguments.getLength()
+                                    then resultOperand = resultOperand.arguments[index]
+                                    else return
+                    indexOfArgumentIndex = type.baseType[].getAllExceptFirstN(endIndexOfIndex + 1).look('[')
+                    if indexOfArgumentIndex.item?()
+                        then indexOfArgumentIndex:put(endIndexOfIndex + 1)
+                        else break
+        type.function?()
+            resultOperand:baseType = type.baseType
+            if type.functionType.result.getLength() != 0
+                then if functionResult .= type.functionType.result[0].toRealOperandType(argumentsNames, argumentsTypes); functionResult.item?()
+                    then resultOperand:functionType:result = [OperandType]{functionResult[]}
+                    else return
+            resultOperand:functionType:arguments = [FunctionTypeArgument].init(type.functionType.arguments.getLength())
+            parse index, argument <- type.functionType.arguments
+                if argumentRealType .= argument.type.toRealOperandType(argumentsNames, argumentsTypes); argumentRealType.item?()
+                    then resultOperand:functionType:arguments:setItem(index, FunctionTypeArgument{type: argumentRealType[], mutable: argument.mutable})
+        type.baseType[] == "_"
+            resultOperand = type
+        default
+            return
+    result:put(resultOperand)
+
+func equal(type1, type2)
+    rules
+        final = type1 == type2 & type1 == OperandType
+        result = Bool
+    if type1.baseType[] == "_" || type2.baseType[] == "_"
+        then return true
+    result = {
+        type1.function?() == type2.function?() &&
+        type1.baseType[] == type2.baseType[] &&
+        type1.arguments.getLength() == type2.arguments.getLength() &&
+        type1.functionType.arguments.getLength() == type2.functionType.arguments.getLength() &&
+        type1.functionType.result.getLength() == type2.functionType.result.getLength()
+    }
+    if result
+        then if type1.function?()
+            then
+                parse argumentIndex, argument <- type1.functionType.arguments
+                    result = argument.type == type2.functionType.arguments[argumentIndex].type && argument.mutable == type2.functionType.arguments[argumentIndex].mutable
+                    if !result
+                        then break
+                if type1.functionType.result.getLength() == 1
+                    then result = type1.functionType.result[0] == type2.functionType.result[0]
+            else parse argumentIndex, argument <- type1.arguments
+                if result = argument == type2.arguments[argumentIndex]; !result
+                    then break
+
+proc type!(operandType, data)
+    rules
+        final = operandType == OperandType & data == Data
+    if operandType.baseType[][0].upper?()
+        then
+            type .= data.getType(operandType.baseType)
+            if type.arguments.getLength() == operandType.arguments.getLength()
+                then parse _, argument<- operandType.arguments
+                    argument.type!(data)
+                else errorWrongType(operandType.toToken())
+        else if operandType.function?()
+            then
+                if operandType.functionType.result.getLength() == 1
+                    then operandType.functionType.result[0].type!(data)
+                parse _, argument <- operandType.functionType.arguments
+                    argument.type.type!(data)
+
+func empty?(type)
+    rules
+        final = type == OperandType
+        result = Bool
+    result = type.baseType[] == ""

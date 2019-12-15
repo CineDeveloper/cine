@@ -1,0 +1,12 @@
+sources
+    "-standart"
+    "./src/"
+    "./main.cine"
+
+flags
+    debug = false
+
+version = "0.1"
+
+cCompilerOptions = "-march=native -O2 -lm -w"
+executable = "cine"

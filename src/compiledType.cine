@@ -1,0 +1,46 @@
+type CompiledType
+    members Map([UInt8], OperandType)
+    groups Set([UInt8])
+    cType [UInt8]
+    align UInt8
+    c, haveLink Bool
+    typeNumber UInt64
+
+proc executeGlobalRules(:compiledType, type, data, :compiledData)
+    rules
+        final = compiledType == CompiledType & type == OperandType & data == Data & compiledData == CompiledData
+    typeToken .= type.toToken()
+    repeat := true
+    for repeat
+        repeat = false
+        parse _, currentRules <- data.globalRules
+            registers := [Bool].init(currentRules.getLength() + 1)
+            registerNumber := 1
+            registers:setFirst(true)
+            parse _, currentRule <- currentRules
+                currentRule.noSubBlocks!()
+                tokenIndex := 0
+                if currentRule.next?(tokenIndex, "join")
+                    then
+                        currentRule.next(tokenIndex).integer!(false, false)
+                        register .= UInt64.fromString(currentRule.line[1][])[]
+                        if register >= registerNumber
+                            then errorNotExpectedToken(currentRule.line[1], "")
+                        group .= currentRule.next(tokenIndex)
+                        data.groupExist!(group)
+                        currentRule.eol!(tokenIndex)
+                        if registers[register]
+                            then if !compiledType.groups[group[]]
+                                then
+                                    compiledType:groups += group[]
+                                    compiledData:types:add(typeToken[], compiledType)
+                                    repeat = true
+                    else
+                        currentRule.next!(tokenIndex, registerNumber.toString())
+                        currentRule.next!(tokenIndex, "=")
+                        expression .= currentRule.getRuleExpression(tokenIndex, [[UInt8]]{"type"}, data)
+                        register .= expression.compile(registers, registerNumber, data, [[UInt8]]{"type"}, [OperandType]{type}, compiledData)
+                        if register.empty?()
+                            then break
+                        registers:setItem(registerNumber, register[])
+                        registerNumber++

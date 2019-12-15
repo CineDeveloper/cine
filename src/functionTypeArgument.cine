@@ -1,0 +1,10 @@
+type FunctionTypeArgument
+    type OperandType
+    mutable Bool
+
+func toOperandsTypes(arguments)
+    rules
+        final = arguments == [FunctionTypeArgument]
+        result = [OperandType]
+    parse _, argument <- arguments
+        result += argument.type

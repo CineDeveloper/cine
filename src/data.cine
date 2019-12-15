@@ -1,0 +1,160 @@
+type Data
+    types Map([UInt8], Type)
+    functions Map([UInt8], [Map(UInt8, [Function])])
+    groups Set([UInt8])
+    enums Map([UInt8], UInt32)
+    globalRules [[Block]]
+    flags Map([UInt8], [UInt8])
+
+func initData(blocks)
+    rules
+        final = blocks == [Block]
+        result = Data
+    result:createBuiltIn()
+    blocks.parseBlocks(result)
+
+proc createBuiltIn(:data)
+    rules
+        final = data == Data
+    fakeFile .= [[UInt8]]{{
+        "func clone(a) #4",
+        "    rules",
+        "        result = a",
+        "    haveLink? a",
+        "        then result = builtInClone(a)",
+        "        else",
+        "            C",
+        "                result_ = a_;",
+        "proc free(a) #4",
+        "    builtInFree(a)",
+        "proc use(a) #4",
+        "    builtInUse(a)",
+        "type UInt8 C(1, \042\042, \042uint8_t\042)",
+        "type UInt16 C(2, \042\042, \042uint16_t\042)",
+        "type UInt32 C(4, \042\042, \042uint32_t\042)",
+        "type UInt64 C(8, \042\042, \042uint64_t\042)",
+        "type Int8 C(1, \042\042, \042int8_t\042)",
+        "type Int16 C(2, \042\042, \042int16_t\042)",
+        "type Int32 C(4, \042\042, \042int32_t\042)",
+        "type Int64 C(8, \042\042, \042int64_t\042)",
+        "type Bool C(1, \042\042, \042bool\042)",
+        "type Float C(5, \042\042, \042float\042)",
+        "type Double C(9, \042\042, \042double\042)",
+        "type Slice(itemsType) C(8, link, \042struct ^^ {uint64_t length; uint64_t capacity; uint64_t initCapacity; ##itemsType##* array; ##itemsType##* items; uint64_t* useCounter; bool isString;}\042, \042struct ^^\042)"}
+    }
+    lineIndex := 0
+    cloneFunction := fakeFile.getBlock(false, 0, "", 0, lineIndex)[]
+    freeFunction := fakeFile.getBlock(false, 0, "", 0, lineIndex)[]
+    useFunction := fakeFile.getBlock(false, 0, "", 0, lineIndex)[]
+    coordinates .= Token{file: "[BuiltIn]"}
+    cloneFunction = cloneFunction.replaceCoordinates(coordinates)
+    freeFunction = freeFunction.replaceCoordinates(coordinates)
+    useFunction = useFunction.replaceCoordinates(coordinates)
+    data:add(cloneFunction.toFunction())
+    data:add(freeFunction.toFunction())
+    data:add(useFunction.toFunction())
+    for
+        bltInTypeBox .= fakeFile.getBlock(false, 0, "", 0, lineIndex)
+        if bltInTypeBox.empty?()
+            then break
+        bltInType := bltInTypeBox[]
+        bltInType = bltInType.replaceCoordinates(coordinates)
+        data:add(bltInType.toType())
+
+proc add(:data, function)
+    rules
+        final = data == Data & function == Function
+    priority .= function.priority
+    argumentsID .= function.getFunctionArgumentsID()
+    functionsWithName := [Map(UInt8, [Function])]
+    functionsWithPriority := Map(UInt8, [Function])
+    functionsWithArgID := [Function]
+    if functionsWithNameBox .= data.functions[function.name[]]; functionsWithNameBox.item?()
+        then
+            functionsWithName = functionsWithNameBox[]
+            functionsWithPriority = functionsWithName[priority]
+            if functionsWithArgIDBox .= functionsWithPriority[argumentsID]; functionsWithArgIDBox.item?()
+                then functionsWithArgID = functionsWithArgIDBox[]
+        else functionsWithName = [Map(UInt8, [Function])].init(9)
+    functionsWithArgID += function
+    functionsWithPriority:add(argumentsID, functionsWithArgID)
+    functionsWithName:setItem(priority, functionsWithPriority)
+    data:functions:add(function.name[], functionsWithName)
+
+proc add(:data, type)
+    rules
+        final = data == Data & type == Type
+    if data.types[type.name[]].item?()
+        then errorAlreadyExist(type.name, "type")
+        else data:types:add(type.name[], type)
+
+proc addEnum(:data, enum)
+    rules
+        final = data == Data & enum == Token
+    if data.enums[enum[]].item?()
+        then errorAlreadyExist(enum, "enum")
+        else data:enums:add(enum[], (data.enums.getLength() + 1).convertTo(UInt32))
+
+proc addGroup(:data, group)
+    rules
+        final = data == Data & group == Token
+    if data.groups[group[]]
+        then errorAlreadyExist(group, "group")
+        else data:groups += group[]
+
+func compileMainFunction(data)
+    rules
+        final = data == Data
+        result = CompiledData
+    mainFunction .= data.getFunction(Token{value: "main", file: "[BuiltIn]"}, [Operand], false, result)
+    precompiledMainFunction .= mainFunction.precompile(data, [Operand], result)
+    result:mainFunctionCName = precompiledMainFunction.cName
+    waitingFunctions := [Pair(Function, [Operand])]
+    mainFunction.compile(data, [Operand], waitingFunctions, result)
+    waitingFunctions:compile(data, result)
+
+func getFunction(data, name, arguments, isFunction, :compiledData)
+    rules
+        final = data == Data & name == Token & arguments == [Operand] & isFunction == Bool & compiledData == CompiledData
+        result = Function
+    argumentsID := UInt8
+    if isFunction
+        then argumentsID = 128.convertTo(UInt8)
+    argumentsID += arguments.getLength().convertTo(UInt8)
+    if functions .= data.functions[name[]]; functions.item?()
+        then for priority := 8; priority != UInt64.maxValue(); priority--
+            if functions[][priority].getLength() != 0
+                then if subFunctions .= functions[][priority][argumentsID]; subFunctions.item?()
+                    then
+                        allSuitable := [Function]
+                        parse _, function <- subFunctions[]
+                            functionArgumentsMutableAndCountMath := isFunction == function.isFunction && arguments.getLength() == function.arguments.getLength()
+                            if functionArgumentsMutableAndCountMath && function.finalRuleTrue?(data, arguments.toOperandsTypes(), compiledData)
+                                then allSuitable += function
+                        if allSuitable.getLength() == 1
+                            then return allSuitable[0]
+                            else if allSuitable.getLength() > 1
+                                then errorSeveralSuitableFunctions(name, allSuitable)
+    errorFunctionNotExist(name, isFunction, arguments)
+
+func getType(data, type)
+    rules
+        final = data == Data & type == Token
+        result = Type
+    if boxResult .= data.types[type[]]; boxResult.item?()
+        then result = boxResult[]
+        else errorNotExist(type, "type")
+
+proc groupExist!(data, name)
+    rules
+        final = data == Data & name == Token
+    if !data.groups[name[]]
+        then errorNotExist(name, "group")
+
+proc add(:data, flags)
+    rules
+        final = data == Data & flags == [Pair(Token, [UInt8])]
+    parse _, flag_ <- flags
+        if data.flags[flag_.first[]].item?()
+            then errorAlreadyExist(flag_.first, "flag")
+            else data:flags:add(flag_.first[], flag_.second)

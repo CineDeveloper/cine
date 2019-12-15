@@ -1,0 +1,76 @@
+func version()
+    rules
+        result = [UInt8]
+    result = "0.1"
+
+func helpMessage()
+    rules
+        result = [UInt8]
+    result = "Cine compiler\n"{
+        "\t-i or --input FILE_NAMES - set input file names(space is separator)\n"
+        "\t-o or --output FILE_NAME - set output file name\n"
+        "\t-f or --flags FILE_NAME - set the name of the file that contains the flags\n"
+        "\t-h or --help - show help\n"
+        "\t-v or --version - show version\n"
+    }
+
+func getFiles()
+    rules
+        result = Triple([[UInt8]], [UInt8], [UInt8])
+    gettingInput := false
+    gettingOutput := false
+    gettingFlags := false
+    if getCMDArgumetsCount() == 0
+        then showMessage(helpMessage())
+        else
+            parse _, argument <- getCMDArguments()
+                case argument of
+                    "-v"; "--version"
+                        onlyOne!(argument)
+                        showMessage(version())
+                    "-h"; "--help"
+                        onlyOne!(argument)
+                        showMessage(helpMessage())
+                    "-i"; "--input"
+                        gettingInput = true
+                        gettingOutput = false
+                        gettingFlags = false
+                    "-o"; "--output"
+                        gettingOutput = true
+                        gettingInput = false
+                        gettingFlags = false
+                    "-f"; "--flags"
+                        gettingFlags = true
+                        gettingOutput = false
+                        gettingInput = false
+                    default
+                        mif
+                            argument[0] == '-'
+                                errorWrongCMDLineArg(argument)
+                            gettingInput
+                                parse _, existedInputFile <- result.first
+                                    if existedInputFile == argument
+                                        then errorInputFileSpecifiedSeverealTimes(existedInputFile)
+                                result:first += argument
+                            gettingOutput
+                                if result:second != ""
+                                    then errorManyOutputFiles()
+                                    else result:second = argument
+                            gettingFlags
+                                if result:third != ""
+                                    then errorManyFlagsFiles()
+                                    else result:third = argument
+            if result.first.getLength() == 0  || result.second == "" || result.third == ""
+                then showMessage(helpMessage())
+
+proc onlyOne!(argument)
+    rules
+        final = argument == [UInt8]
+    if getCMDArgumetsCount() != 1
+        then errorUnnecessaryArgument(argument)
+
+proc showMessage(message)
+    rules
+        final = message == [UInt8]
+    message.printLn()
+    exit()

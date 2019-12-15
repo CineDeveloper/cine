@@ -1,0 +1,61 @@
+type CompiledData
+    types Map([UInt8], CompiledType)
+    functions Map([UInt8], CompiledFunction)
+    cLibs, cSliceTypes, cFunctions, cFunctionSignatures [UInt8]
+    cTypes [Triple(UInt64, [UInt64], [UInt8])]
+    mainFunctionCName [UInt8]
+    flags Map([UInt8], [UInt8])
+
+proc writeToFile(compiledData, outputFileName, flagsFileName)
+    rules
+        final = compiledData == CompiledData & outputFileName == [UInt8] & flagsFileName == [UInt8]
+    outputFile := ""
+    bltInCLibs .= [[UInt8]]{"#include <stdlib.h>", "#include <stdio.h>", "#include <stddef.h>", "#include <inttypes.h>", "#include <time.h>", "#include <stdbool.h>"}
+    parse _, cLib <- bltInCLibs
+        if !compiledData.cLibs.contain?(cLib)
+            then outputFile:join(cLib, "\n")
+    outputFile:join({
+        compiledData.cLibs,
+        "\nstatic uint64_t __staticRandomNumber__;\n\nstatic uint64_t __argc;\nstatic char** __argv;\n\n",
+        compiledData.cSliceTypes)
+    }
+    addTypes := compiledData.cTypes
+    notAddTypes := [Triple(UInt64, [UInt64], [UInt8])]
+    currentTypeIndex := 0
+    for
+        needToAdd := true
+        currentType .= addTypes[currentTypeIndex]
+        parse _, subTypeNumber <- currentType.second
+            for subTypeIndex := currentTypeIndex + 1; subTypeIndex < addTypes.getLength(); subTypeIndex++
+                if addTypes[subTypeIndex].first == subTypeNumber
+                    then
+                        needToAdd = false
+                        break 2
+        if needToAdd
+            then outputFile += currentType.third
+            else notAddTypes += currentType
+        currentTypeIndex++
+        if currentTypeIndex == addTypes.getLength()
+            then
+                if notAddTypes.getLength() == 0
+                    then break
+                addTypes = notAddTypes
+                notAddTypes = [Triple(UInt64, [UInt64], [UInt8])]
+                currentTypeIndex = 0
+    outputFile:join({
+        "\n",
+        compiledData.cFunctionSignatures,
+        "\nint main(int argc, char** argv) {\n\tsrand(time(NULL) + ",
+        UInt64.maxValue().random().toString(),
+        "ull);\n\t__staticRandomNumber__ = rand();\n\t__argc = argc;\n\t__argv = argv;\n\t",
+        compiledData.mainFunctionCName,
+        "();\n\treturn 0;\n}\n\n",
+        compiledData.cFunctions)
+    }
+    if !outputFile.convertTo(BinaryData).writeToFile(outputFileName)
+        then errorCantWriteToFile(outputFileName)
+    flagsFile := ""
+    parse name, description <- compiledData.flags
+        flagsFile:join(name, " ", description, "\n")
+    if !flagsFile.convertTo(BinaryData).writeToFile(flagsFileName)
+        then errorCantWriteToFile(flagsFileName)

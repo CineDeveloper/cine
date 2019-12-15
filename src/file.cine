@@ -1,0 +1,128 @@
+func getBlock(file, levelError, expectedLevel, fileName, fileIndex, :lineIndex)
+    rules
+        1 = file == [[UInt8]] & levelError == Bool & expectedLevel == UInt64
+        2 = fileName == [UInt8] & fileIndex == UInt64 & lineIndex == UInt64
+        final = 1 & 2
+        result = Box(Block)
+    lineIndex = file.getFirstNotEmptyLineIndex(fileName, lineIndex)
+    if lineIndex < file.getLength()
+        then
+            line := file[lineIndex]
+            currentLevel := line.getLevel()
+            if currentLevel != expectedLevel
+                then if levelError
+                    then errorWrongLevel(fileName, lineIndex, expectedLevel, currentLevel)
+                else
+                    tokens := line.getAllTokens(fileName, fileIndex, lineIndex, currentLevel)
+                    lineIndex++
+                    ignoreSplitedString := false
+                    mif
+                        tokens[0][] == "C" && tokens.getLength() == 1
+                            ignoreSplitedString = true
+                            tokens = file.getCCode(expectedLevel + 1, fileName, fileIndex, lineIndex)
+                        tokens[0][] == "include" && tokens.getLength() == 1
+                            ignoreSplitedString = true
+                            tokens = file.getCLibs(expectedLevel + 1, fileName, fileIndex, lineIndex)
+                        tokens.getLast()[] == "{"
+                            tokens = tokens.getAllExceptLast()
+                            for
+                                lineIndex = file.getFirstNotEmptyLineIndex(fileName, lineIndex)
+                                if lineIndex >= file.getLength()
+                                    then errorNotExpectedToken(tokens.getLast(), "}")
+                                line = file[lineIndex]
+                                currentLevel = line.getLevel()
+                                newTokens .= line.getAllTokens(fileName, fileIndex, lineIndex, currentLevel)
+                                if newTokens.getLength() == 1 && newTokens.getLast()[] == "}"
+                                    then
+                                        lineIndex++
+                                        break
+                                    else tokens += newTokens
+                                lineIndex++
+                    if !ignoreSplitedString
+                        then
+                            leftIndexOfMultiString := 0
+                            rightEdgeOfMultiString := 0
+                            index := 0
+                            for
+                                for ; index + 1 < tokens.getLength(); index++
+                                    if tokens[index][][0] == '\042' && tokens[index + 1][][0] == '\042'
+                                        then
+                                            leftIndexOfMultiString = index
+                                            for rightEdgeOfMultiString = index + 2; rightEdgeOfMultiString < tokens.getLength(); rightEdgeOfMultiString++
+                                                if tokens[rightEdgeOfMultiString][][0] != '\042'
+                                                    then break
+                                            index = rightEdgeOfMultiString
+                                            break
+                                if leftIndexOfMultiString == rightEdgeOfMultiString
+                                    then break
+                                    else
+                                        newItem := tokens[leftIndexOfMultiString]
+                                        newItem:value = newItem[].getAllExceptLast()
+                                        for stringIndex := leftIndexOfMultiString + 1; stringIndex < rightEdgeOfMultiString; stringIndex++
+                                            newItem:value += tokens[stringIndex][].getAllExceptLast().getAllExceptFirst()
+                                        newItem:value += '\042'
+                                        leftPart .= tokens.getFirstN(leftIndexOfMultiString)
+                                        rightPart .= tokens.getAllExceptFirstN(rightEdgeOfMultiString)
+                                        tokens = leftPart + newItem + rightPart
+                                        leftIndexOfMultiString = 0
+                                        rightEdgeOfMultiString = 0
+                    result = Box(Block).create(Block{line: tokens, subBlocks: file.getSubBlocks(expectedLevel + 1, fileName, fileIndex, lineIndex)})
+
+func getFirstNotEmptyLineIndex(file, fileName, currentLineIndex)
+    rules
+        final = file == [[UInt8]] & fileName == [UInt8] & currentLineIndex == UInt64
+        result = UInt64
+    result = currentLineIndex
+    for result < file.getLength()
+        if line .= file[result]; mutUInt64 := 0; line != "" && getToken(line, fileName, 0, currentLineIndex, mutUInt64).item?()
+            then break
+        result++
+
+func getCCode(file, expectedLevel, fileName, fileIndex, :lineIndex)
+    rules
+        1 = file == [[UInt8]] & expectedLevel == UInt64 & fileName == [UInt8]
+        2 = fileIndex == UInt64 & lineIndex == UInt64
+        final = 1 & 2
+        result = [Token]
+    line := file[lineIndex]
+    line.level!(expectedLevel, fileName, lineIndex)
+    result += Token{value: "C"}
+    result += Token{value: line.getAllExceptFirstN(expectedLevel * 4), file: fileName, fileIndex: fileIndex, line: lineIndex, row: expectedLevel * 4}
+    lineIndex++
+    for lineIndex != file.getLength()
+        line = file[lineIndex]
+        currentLevel .= line.getLevel()
+        if currentLevel < expectedLevel
+            then break
+        result += Token{value: line.getAllExceptFirstN(currentLevel * 4), file: fileName, fileIndex: fileIndex, line: lineIndex, row: currentLevel * 4}
+        lineIndex++
+
+func getCLibs(file, expectedLevel, fileName, fileIndex, :lineIndex)
+    rules
+        1 = file == [[UInt8]] & expectedLevel == UInt64 & fileName == [UInt8]
+        2 = fileIndex == UInt64 & lineIndex == UInt64
+        final = 1 & 2
+        result = [Token]
+    line := file[lineIndex]
+    line.level!(expectedLevel, fileName, lineIndex)
+    result += Token{value: "include"}
+    result += Token{value: line.getAllExceptFirstN(expectedLevel * 4), file: fileName, fileIndex: fileIndex, line: lineIndex, row: expectedLevel * 4}
+    lineIndex++
+    for lineIndex != file.getLength()
+        line = file[lineIndex]
+        currentLevel .= line.getLevel()
+        if currentLevel < expectedLevel
+            then break
+        result += Token{value: line.getAllExceptFirstN(currentLevel * 4), file: fileName, fileIndex: fileIndex, line: lineIndex, row: currentLevel * 4}
+        lineIndex++
+
+func getSubBlocks(file, expectedLevel, fileName, fileIndex, :lineIndex)
+    rules
+        1 = file == [[UInt8]] & expectedLevel == UInt64 & fileName == [UInt8]
+        2 = fileIndex == UInt64 & lineIndex == UInt64
+        final = 1 & 2
+        result = [Block]
+    for
+        if block .= file.getBlock(false, expectedLevel, fileName, fileIndex, lineIndex); block.item?()
+            then result += block[]
+            else break

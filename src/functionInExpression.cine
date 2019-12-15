@@ -1,0 +1,59 @@
+type FunctionInExpression
+    name Token
+    arguments [FunctionExpression]
+
+func toOperand(functionInExpression, compilingFunction, :registersCount, :waitingFunctions, haveResult, data, :compiledData)
+    rules
+        1 = functionInExpression == FunctionInExpression & compilingFunction == CompiledFunction & registersCount == UInt64
+        2 = waitingFunctions == [Pair(Function, [Operand])] & haveResult == Bool & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = Pair([UInt8], Operand)
+    arguments := [Operand].init(functionInExpression.arguments.getLength())
+    tmpOperands := Map([UInt8], Operand)
+    parse argumentIndex, argumentExpression <- functionInExpression.arguments
+        code_argumentOperand .= argumentExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+        result:first += code_argumentOperand.first
+        arguments:setItem(argumentIndex, code_argumentOperand.second)
+    function .= data.getFunction(functionInExpression.name, arguments, haveResult, compiledData)
+    parse index, argument <- function.arguments
+        realArgument .= arguments[index]
+        if argument.mutable
+            then if !realArgument.mutable
+                then errorExpectMutable(realArgument.expressionForErrors)
+            else if realArgument.mutable
+                then arguments:setItem(index, realArgument.toReadOnly())
+    parse index1, argument1 <- arguments
+        if argument1.mutable
+            then parse index2, argument2 <- arguments
+                if index1 != index2
+                    then
+                        mainObject1 .= argument1.getMainObjectName()
+                        mainObject2 .= argument2.getMainObjectName()
+                        if mainObject1 != "" && mainObject1 == mainObject2
+                            then errorSeveralVariableToFunction(argument1.expressionForErrors, argument2.expressionForErrors)
+    precompiledFunction .= function.precompile(data, arguments, compiledData)
+    waitingFunctions += Pair(Function, [Operand]).create(function, arguments)
+    cFunctionCall := precompiledFunction.cName + '('
+    if arguments.getLength() != 0
+        then
+            parse _, argument <- arguments
+                cFunctionCall:join(argument.value, ", ")
+            cFunctionCall = cFunctionCall.getAllExceptLastN(2)
+    cFunctionCall += ')'
+    if haveResult
+        then
+            resultType .= precompiledFunction.type.result[0]
+            compiledResultType .= resultType.compile(data, compiledData)
+            code_register .= registersCount:createNewRegister(false, compiledResultType.cType, cFunctionCall)
+            result:first += code_register.first
+            result:second = Operand{value: code_register.second, cType: compiledResultType.cType, type: resultType, typeNumber: compiledResultType.typeNumber, haveLink:compiledResultType.haveLink}
+            result:second:expressionForErrors = functionInExpression.name
+            result:second:expressionForErrors:value += '('
+            if arguments.getLength() != 0
+                then
+                    parse _, argument <- arguments
+                        result:second:expressionForErrors:value:join(argument.expressionForErrors.value, ", ")
+                    result:second:expressionForErrors:value = result.second.expressionForErrors.value.getAllExceptLastN(2)
+            result:second:expressionForErrors:value += ')'
+        else result:first:join("\t", cFunctionCall, ";\n")
+    result:first += tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData)

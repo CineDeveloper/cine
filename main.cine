@@ -1,0 +1,6 @@
+proc main()
+    files .= getFiles()
+    blocks .= files.first.loadBlocks()
+    data .= blocks.initData()
+    compiledData .= data.compileMainFunction()
+    compiledData.writeToFile(files.second, files.third)

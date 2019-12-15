@@ -1,0 +1,118 @@
+func getLevel(line)
+    rules
+        final = line == [UInt8]
+        result = UInt64
+    parse index, char <- line
+        if char != ' '
+            then
+                result = index / 4
+                break
+
+func getAllTokens(line, file, fileIndex, lineIndex, currentLevel)
+    rules
+        1 = line == [UInt8] & file == [UInt8]
+        2 = fileIndex == UInt64 & lineIndex == UInt64 & currentLevel == UInt64
+        final = 1 & 2
+        result = [Token]
+    rowIndex := currentLevel * 4
+    for rowIndex < line.getLength()
+        if line[rowIndex] != ' '
+            then break
+        rowIndex++
+    for
+        if token .= line.getToken(file, fileIndex, lineIndex, rowIndex); token.item?()
+            then result += token[]
+            else break
+
+func getToken(line, file, fileIndex, lineIndex, :rowIndex)
+    rules
+        1 = line == [UInt8] & file == [UInt8]
+        2 = fileIndex == UInt64 & lineIndex == UInt64 & rowIndex == UInt64
+        final = 1 & 2
+        result = Box(Token)
+    resultToken := Token{file: file, fileIndex: fileIndex, line: lineIndex}
+    nameFound := false
+    symbolsFound := false
+    for
+        mif
+            rowIndex == line.getLength()
+                if !(nameFound || symbolsFound)
+                    then return
+                break all
+            line[rowIndex] == '/'
+                if !(nameFound || symbolsFound)
+                    then
+                        rowIndex++
+                        mif
+                            rowIndex == line.getLength()
+                                resultToken:value = "/"
+                                resultToken:row = rowIndex - 1
+                            line[rowIndex] == '*'
+                                if endOffset .= line.getAllExceptFirstN(rowIndex + 1).look("*/"); endOffset.item?()
+                                    then
+                                        rowIndex += endOffset[] + 3
+                                        continue
+                                    else errorNotExpectedEOL(Token{file: file, line: lineIndex, row: line.getLength()}, "*/")
+                            line[rowIndex] == '/'
+                                return
+                            default
+                                resultToken:value += '/'
+                                if !symbolsFound
+                                    then
+                                        resultToken:row = rowIndex - 1
+                                        symbolsFound = true
+                                continue
+                break all
+            line[rowIndex] == ' '
+                if nameFound || symbolsFound
+                    then break all
+            line[rowIndex] == '\t'
+                errorTabNotAllowed(file, lineIndex + 1, rowIndex + 1)
+            line[rowIndex] == '\042' || line[rowIndex] == '\047'
+                if !(nameFound || symbolsFound)
+                    then
+                        firstIndex .= rowIndex
+                        firstChar .= line[firstIndex]
+                        for
+                            rowIndex++
+                            if rowIndex == line.getLength()
+                                then errorNotExpectedEOL(Token{file: file, line: lineIndex, row: line.getLength()}, "" + firstChar)
+                                else if line[rowIndex] == firstChar
+                                    then
+                                        rowIndex++
+                                        resultToken:value = line.getSlice(firstIndex, rowIndex)
+                                        resultToken:row = firstIndex
+                                        break
+                break all
+            "()[]{};@".contain?(line[rowIndex])
+                if !(nameFound || symbolsFound)
+                    then
+                        resultToken:value = "" + line[rowIndex]
+                        resultToken:row = rowIndex
+                        rowIndex++
+                break all
+            line[rowIndex].fromName?()
+                if symbolsFound
+                    then break all
+                resultToken:value += line[rowIndex]
+                if !nameFound
+                    then
+                        resultToken:row = rowIndex
+                        nameFound = true
+            default
+                if nameFound
+                    then break all
+                resultToken:value += line[rowIndex]
+                if !symbolsFound
+                    then
+                        resultToken:row = rowIndex
+                        symbolsFound = true
+        rowIndex++
+    resultToken:value:setStringFlag()
+    result:put(resultToken)
+
+proc level!(line, expectedLevel, file, lineIndex)
+    rules
+        final = line == [UInt8] & expectedLevel == UInt64 & file == [UInt8] & lineIndex == UInt64
+    if currentLevel .= line.getLevel(); currentLevel != expectedLevel
+        then errorWrongLevel(file, lineIndex + 1, expectedLevel, currentLevel)

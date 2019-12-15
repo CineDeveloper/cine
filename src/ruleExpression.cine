@@ -1,0 +1,77 @@
+type RuleExpression
+    expression [Fluid]
+
+type RuleRegisterIndex
+    index Token
+
+type RuleType
+    type OperandType
+
+type RuleGroup
+    group [UInt8]
+
+type RuleOperator
+    operator Token
+
+type RuleFunctionArgument
+    argument Token
+
+func getItem(ruleExpression)
+    rules
+        final = ruleExpression == RuleExpression
+        result = [Fluid]
+    result = ruleExpression.expression
+
+func compile(expression, registers, currentRegisterIndex, data, argumentsNames, argumentsTypes, :compiledData)
+    rules
+        1 = expression == RuleExpression & registers == [Bool] & currentRegisterIndex == UInt64
+        2 = data == Data & argumentsNames == [[UInt8]] & argumentsTypes == [OperandType]
+        3 = compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = Box(Bool)
+    for priority := 3.convertTo(UInt8); priority != UInt8.maxValue(); priority--
+        for index := expression[].getLength() - 1; index != UInt64.maxValue(); index--
+            expressionItem .= expression[][index]
+            case expressionItem.getInnerTypeNumber() of
+                RuleExpression
+                    if priority == UInt8
+                        then return expressionItem[RuleExpression].compile(registers, currentRegisterIndex, data, argumentsNames, argumentsTypes, compiledData)
+                RuleRegisterIndex
+                    if expression[].getLength() == 1
+                        then
+                            registerIndexToken .= expressionItem[RuleRegisterIndex].index
+                            if registerIndex .= UInt64.fromString(registerIndexToken[])[]; registerIndex <= currentRegisterIndex
+                                then return Box(Bool).create(registers[registerIndex])
+                            errorNotExpectedToken(registerIndexToken, "")
+                RuleOperator
+                    operator .= expressionItem[RuleOperator].operator[]
+                    mif
+                        priority == 3.convertTo(UInt8) && operator == "|"
+                            leftResult .= RuleExpression{expression: expression[].getFirstN(index)}.compile(registers, currentRegisterIndex, data, argumentsNames, argumentsTypes, compiledData)
+                            if leftResult.empty?() || leftResult[]
+                                then return leftResult
+                            return RuleExpression{expression: expression[].getAllExceptFirstN(index + 1)}.compile(registers, currentRegisterIndex, data, argumentsNames, argumentsTypes, compiledData)
+                        priority == 2.convertTo(UInt8) && operator == "&"
+                            leftResult .= RuleExpression{expression: expression[].getFirstN(index)}.compile(registers, currentRegisterIndex, data, argumentsNames, argumentsTypes, compiledData)
+                            if !(leftResult.item?() && leftResult[])
+                                then return leftResult
+                            return RuleExpression{expression: expression[].getAllExceptFirstN(index + 1)}.compile(registers, currentRegisterIndex, data, argumentsNames, argumentsTypes, compiledData)
+                        priority == 1.convertTo(UInt8) && operator == "!"
+                            result = RuleExpression{expression: expression[].getAllExceptFirst()}.compile(registers, currentRegisterIndex, data, argumentsNames, argumentsTypes, compiledData)
+                            if result.empty?()
+                                then return Box(Bool)
+                            return Box(Bool).create(!result[])
+                        priority == UInt8 && (operator == "==" || operator == "!=")
+                            leftType .= OperandType{baseType: expression[][index - 1][RuleFunctionArgument].argument}.toRealOperandType(argumentsNames, argumentsTypes)
+                            if leftType.empty?()
+                                then return Box(Bool)
+                            righType .= expression[][index + 1][RuleType].type.toRealOperandType(argumentsNames, argumentsTypes)
+                            if righType.empty?()
+                                then return Box(Bool)
+                            return Box(Bool).create((leftType[] == righType[]) == (operator == "=="))
+                        priority == UInt8 && operator == ">"
+                            argumentType .= OperandType{baseType: expression[][index - 1][RuleFunctionArgument].argument}.toRealOperandType(argumentsNames, argumentsTypes)
+                            if argumentType.empty?()
+                                then return Box(Bool)
+                            compiledArgumentType .= argumentType[].compile(data, compiledData)
+                            return Box(Bool).create(compiledArgumentType.groups[expression[][index + 1][RuleGroup].group])

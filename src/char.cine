@@ -1,0 +1,5 @@
+func fromName?(char)
+    rules
+        final = char == UInt8
+        result = Bool
+    result = char.letter?() || char.digit?() || char == '_'

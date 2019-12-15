@@ -1,0 +1,22 @@
+type CompiledFunction
+    type FunctionType
+    argumentsNames [[UInt8]]
+    cName [UInt8]
+    fullCompiled Bool
+
+func getNamedOperands(compilingFunction, arguments, resultType)
+    rules
+        final = compilingFunction == CompiledFunction & arguments == [Operand] & resultType == CompiledType
+        result = Map([UInt8], [NamedOperand])
+    parse argumentIndex, argument <- arguments
+        argumentName .= compilingFunction.argumentsNames[argumentIndex]
+        mutArgument := argument
+        mutArgument:value = argumentName + '_'
+        mutArgument:constant = false
+        mutArgument:expressionForErrors = Token
+        mutArgument:static = false
+        result:add(argumentName, [NamedOperand]{NamedOperand{level: 0, operand:mutArgument}})
+    if compilingFunction.type.result.getLength() == 1
+        then
+            resultOperand .= Operand{value: "&result_", cType: resultType.cType, type: compilingFunction.type.result[0], typeNumber: resultType.typeNumber, haveLink:resultType.haveLink, mutable: true}
+            result:add("result", [NamedOperand]{NamedOperand{level: 0, operand: resultOperand}})

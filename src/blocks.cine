@@ -1,0 +1,70 @@
+func loadBlocks(intputFiles)
+    rules
+        final = intputFiles == [[UInt8]]
+        result = [Block]
+    parse fileIndex, fileName <- intputFiles
+        file .= loadFile(fileName)
+        if file.empty?()
+            then errorCantLoadFile(fileName)
+        lines .= file[].convertTo([UInt8]).asString().split('\n')
+        lineIndex := 0
+        for
+            if block .= lines.getBlock(true, 0, fileName, fileIndex, lineIndex); block.item?()
+                then result += block[]
+                else break
+
+proc parseBlocks(blocks, :data)
+    rules
+        final = blocks == [Block] & data == Data
+    parse _, block <- blocks
+        case block.line[0][] of
+            "func"; "proc"
+                data:add(block.toFunction())
+            "type"
+                data:add(block.toType())
+            "enums"
+                block.eol!(1)
+                block.subBlocks!()
+                parse _, enum <- block.subBlocks
+                    enum.noSubBlocks!()
+                    enum.eol!(1)
+                    enum.line[0].enumName!()
+                    data:addEnum(enum.line[0])
+            "rules"
+                block.subBlocks!()
+                data:globalRules += block.subBlocks
+            "group"
+                block.noSubBlocks!()
+                block.eol!(2)
+                block.line[1].groupName!()
+                data:addGroup(block.line[1])
+            "flags"
+                block.subBlocks!()
+                block.eol!(1)
+                flags .= block.subBlocks.getFlags()
+                data:add(flags)
+            default
+                errorNotExpectedToken(block.line[0], "")
+
+func getTypeMembers(blocks, argumets)
+    rules
+        final = blocks == [Block] & argumets == [[UInt8]]
+        result = Map([UInt8], TypeMember)
+    parse _, membersBlock <- blocks
+        members .= membersBlock.getTypeMembersFromOneLine(argumets)
+        parse _, member <- members
+            if result[member.name[]].item?()
+                then errorAlreadyExist(member.name, "type member")
+            result:add(member.name[], member)
+
+func getFlags(blocks)
+    rules
+        final = blocks == [Block]
+        result = [Pair(Token, [UInt8])]
+    parse _, block <- blocks
+        block.noSubBlocks!()
+        tokenIndex := 0
+        name .= block.getFlagName(tokenIndex)
+        description .= block.getString(tokenIndex)
+        block.eol!(tokenIndex)
+        result += Pair(Token, [UInt8]).create(name, description)

@@ -1,0 +1,8 @@
+type Type
+    name Token
+    arguments [[UInt8]]
+    members Map([UInt8], TypeMember)
+    cStructDef, cType [UInt8]
+    align UInt8
+    cLibs [[UInt8]]
+    c, haveLink, baseHaveLink Bool

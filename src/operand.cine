@@ -1,0 +1,198 @@
+type Operand
+    value, cType [UInt8]
+    expressionForErrors Token
+    type OperandType
+    typeNumber UInt64
+    mutable, static, constant, haveLink Bool
+
+func toReadOnly(operand)
+    rules
+        final = operand == Operand
+        result = Operand
+    result = operand
+    if result.mutable
+        then
+            result:mutable = false
+            result:value = select(result.value[0] == '&', result.value.getAllExceptFirst(), "(*".join(result.value, ")"))
+
+func getMainObjectName(operand)
+    rules
+        final = operand == Operand
+        result = [UInt8]
+    beginIndex := 0
+    endEdge := 0
+    if !operand.value.contain?('{')
+        then
+            parse index, char <- operand.value
+                if char.fromName?()
+                    then
+                        beginIndex = index
+                        break
+            endEdge = operand.value.getLength() - beginIndex - 1
+            parse index, char <- operand.value.getAllExceptFirstN(beginIndex + 1)
+                if !char.fromName?()
+                    then
+                        endEdge = index
+                        break
+            endEdge += beginIndex + 1
+            result = operand.value.getSlice(beginIndex, endEdge)
+
+func createNewRegister(:registersCount, mutable, cType, value)
+    rules
+        final = registersCount == UInt64 & mutable == Bool & cType == [UInt8] & value == [UInt8]
+        result = Pair([UInt8], [UInt8])
+    result:second = "__r" + registersCount.toString()
+    result:first = "\t".join(cType, select(mutable, " ", " const "), result:second)
+    if value != ""
+        then result:first:join(" = ", value)
+    result:first += ";\n"
+    registersCount++
+
+func freeOperands(:tmpOperands, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = tmpOperands == Map([UInt8],Operand) & compilingFunction == CompiledFunction & registersCount == UInt64
+        2 = waitingFunctions == [Pair(Function,[Operand])] & compiledData == CompiledData
+        final = 1 & 2
+        result = [UInt8]
+    if tmpOperands.getLength() != 0
+        then
+            parse _, operand <- tmpOperands
+                result += operand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+            tmpOperands = #tmpOperands
+
+func toOperandsTypes(operands)
+    rules
+        final = operands == [Operand]
+        result = [OperandType]
+    parse _, operand <- operands
+        result += operand.type
+
+proc put(:tmpOperands, operand)
+    rules
+        final = tmpOperands == Map([UInt8], Operand) & operand == Operand
+    if operand.value != ""
+        then tmpOperands:add(operand.value, operand)
+
+func useOperand(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = [UInt8]
+    if operand.haveLink && !(operand.constant || operand.type.function?() || operand.static)
+        then
+            roOperand .= operand.toReadOnly()
+            result = FunctionInExpression{name: operand.expressionForErrors.replaceValue("use"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{roOperand.toFluid()}}}}{
+                .toOperand(compilingFunction, registersCount, waitingFunctions, false, data, compiledData).first
+            }
+
+func freeOperand(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = [UInt8]
+    if operand.haveLink && !(operand.constant || operand.type.function?() || operand.static)
+        then
+            roOperand .= operand.toReadOnly()
+            result = FunctionInExpression{name: roOperand.expressionForErrors.replaceValue("free"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{roOperand.toFluid()}}}}{
+                .toOperand(compilingFunction, registersCount, waitingFunctions, false, data, compiledData).first
+            }
+
+func cloneMembers(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = Pair([UInt8], Operand)
+    operandType .= operand.type.compile(data, compiledData)
+    code_register .= registersCount:createNewRegister(true, operand.cType, "(".join(operand.cType, "){0}"))
+    code := code_register.first
+    parse name, type <- operandType.members
+        memberType .= type.compile(data, compiledData)
+        memberOperand .= Operand{{
+            value: "(".join(operand.value, ").", name, "_"),
+            cType: memberType.cType,
+            expressionForErrors: operand.expressionForErrors,
+            type: type,
+            typeNumber: memberType.typeNumber,
+            haveLink: memberType.haveLink}
+        }
+        code_clonedMember .= FunctionInExpression{name: operand.expressionForErrors.replaceValue("clone"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{memberOperand.toFluid()}}}}{
+            .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
+        }
+        code:join(code_clonedMember.first, "\t", code_register.second, ".", name, "_ = ", code_clonedMember.second.value, ";\n")
+    resultOperand := operand
+    resultOperand:value = code_register.second
+    resultOperand:static = false
+    resultOperand:constant = false
+    resultOperand:expressionForErrors:value = "clone(".join(resultOperand.expressionForErrors[], ")")
+
+func freeMembers(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = [UInt8]
+    operandType .= operand.type.compile(data, compiledData)
+    parse name, type <- operandType.members
+        memberType .= type.compile(data, compiledData)
+        memberOperand .= Operand{{
+            value: "(".join(operand.value, ").", name, "_"),
+            cType: memberType.cType,
+            expressionForErrors: operand.expressionForErrors,
+            type: type,
+            typeNumber: memberType.typeNumber,
+            haveLink: memberType.haveLink}
+        }
+        result += memberOperand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+
+func useMembers(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = [UInt8]
+    operandType .= operand.type.compile(data, compiledData)
+    parse name, type <- operandType.members
+        memberType .= type.compile(data, compiledData)
+        memberOperand .= Operand{{
+            value: "(".join(operand.value, ").", name, "_"),
+            cType: memberType.cType,
+            expressionForErrors: operand.expressionForErrors,
+            type: type,
+            typeNumber: memberType.typeNumber,
+            haveLink: memberType.haveLink}
+        }
+        result += memberOperand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+
+func setOperand(destionation, source, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = destionation == Operand & source == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = [UInt8]
+    if !destionation.mutable
+        then errorExpectMutable(destionation.expressionForErrors)
+    if destionation.type != source.type
+        then errorWrongType(source.expressionForErrors.replaceValue(source.type.toToken()[]))
+    if destionation.haveLink
+        then
+            tmpOperand := destionation
+            tmpOperand:mutable = false
+            tmpOperand:static = false
+            code_value .= registersCount:createNewRegister(false, destionation.cType, destionation.toReadOnly().value)
+            result = code_value.first
+            tmpOperand:value = code_value.second
+            if destionation.value[0] == '&'
+                then result:join("\t", destionation.value.getAllExceptFirst(), " = ")
+                else result:join("\t*(", destionation.value, ") = ")
+            if destionation.cType.getLast() == '*'
+                then result:join("(", destionation.cType, ")(", source.value, ");\n")
+                else result:join(source.value, ";\n")
+            result += tmpOperand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+        else
+            if destionation.value[0] == '&'
+                then result:join("\t", destionation.value.getAllExceptFirst(), " = ")
+                else result:join("\t*(", destionation.value, ") = ")
+            result:join(source.value, ";\n")

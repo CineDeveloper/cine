@@ -1,0 +1,149 @@
+type Function
+    name Token
+    arguments [FunctionArgument]
+    rules, body [Block]
+    cLibs [[UInt8]]
+    priority UInt8
+    isFunction Bool
+
+func getFunctionArgumentsID(function)
+    rules
+        final = function == Function
+        result = UInt8
+    if function.isFunction
+        then result = 128.convertTo(UInt8)
+    result += function.arguments.getLength().convertTo(UInt8)
+
+func precompile(function, data, arguments, :compiledData)
+    rules
+        final = function == Function & data == Data & arguments == [Operand] & compiledData == CompiledData
+        result = CompiledFunction
+    result:cName = function.getCName(arguments)
+    if compiledFunction .= compiledData.functions[result.cName]; compiledFunction.item?()
+        then result = compiledFunction[]
+        else
+            result:type:arguments = [FunctionTypeArgument].init(arguments.getLength())
+            result:argumentsNames = [[UInt8]].init(arguments.getLength())
+            parse argumentIndex, argument <- arguments
+                functionArgument .= function.arguments[argumentIndex]
+                result:type:arguments:setItem(argumentIndex, FunctionTypeArgument{type:argument.type, mutable: functionArgument.mutable})
+                result:argumentsNames:setItem(argumentIndex, functionArgument.name)
+            if function.isFunction
+                then
+                    resultBlock .= function.rules.getLast()
+                    tokenIndex := 1
+                    resultBlock.next!(tokenIndex, "=")
+                    resultType .= resultBlock.getOperandType(tokenIndex, result.argumentsNames, false, true)
+                    realResultType .= resultType.toRealOperandType(result.argumentsNames, result.type.arguments.toOperandsTypes())
+                    if realResultType.empty?()
+                        then errorWrongType(resultType.toToken())
+                    result:type:result = [OperandType]{realResultType[]}
+            compiledData:functions:add(result.cName, result)
+    parse _, cLib <- function.cLibs
+        if !compiledData.cLibs.contain?(cLib)
+            then compiledData:cLibs:join(cLib, "\n")
+
+proc compile(function, data, arguments, :waitingFunctions, :compiledData)
+    rules
+        final = function == Function & data == Data & waitingFunctions == [Pair(Function, [Operand])] & compiledData == CompiledData
+    functionCName .= function.getCName(arguments)
+    compilingFunction := compiledData.functions[functionCName][]
+    if compilingFunction.fullCompiled
+        then return
+    compilingFunction:fullCompiled = true
+    functionSignature := "static inline "
+    resultType := CompiledType
+    if compilingFunction.type.result.getLength() == 0
+        then functionSignature += "void "
+        else
+            resultType = compilingFunction.type.result[0].compile(data, compiledData)
+            functionSignature:join(resultType.cType, " ")
+    functionSignature:join(functionCName, "(")
+    parse argumentIndex, argument <- arguments
+        functionSignature += argument.cType
+        if argument.mutable
+            then functionSignature += '*'
+        functionSignature:join(" ", compilingFunction.argumentsNames[argumentIndex], "_, ")
+    if functionSignature.getLast() == ' '
+        then functionSignature = functionSignature.getAllExceptLastN(2)
+    functionSignature += ')'
+    compiledData:cFunctionSignatures:join(functionSignature, ";\n")
+    compiledData:cFunctions:join(functionSignature, " {\n")
+    namedOperands := compilingFunction.getNamedOperands(arguments, resultType)
+    breakCounter := 0
+    continueCounter := 0
+    registersCount := 0
+    compiledData:cFunctions += "\t{\n\tint __breakCounter = 0;\n\tint __continueCounter = 0;\n"
+    if compilingFunction.type.result.getLength() == 1
+        then compiledData:cFunctions:join("\t", resultType.cType, " result_ = (", resultType.cType, "){0};\n")
+    parse _, functionExpression <- function.body
+        compiledData:cFunctions += functionExpression.compile(compilingFunction, 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+    compiledData:cFunctions += namedOperands:deleteLevel(compilingFunction, 1, registersCount, waitingFunctions, data, compiledData)
+    if compilingFunction.type.result.getLength() == 1
+        then compiledData:cFunctions += "\treturn result_;\n\t}\n}\n\n"
+        else compiledData:cFunctions += "\t}\n}\n\n"
+    compiledData:functions:add(functionCName, compilingFunction)
+
+proc compile(:waitingFunctions, data, :compiledData)
+    rules
+        final = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+    for waitingFunctions.getLength() != 0
+        currentCompilingFunction .= waitingFunctions.getLast()
+        waitingFunctions = waitingFunctions.getAllExceptLast()
+        currentCompilingFunction.first.compile(data, currentCompilingFunction.second, waitingFunctions, compiledData)
+
+func getCName(function, arguments)
+    rules
+        final = function == Function & arguments == [Operand]
+        result = [UInt8]
+    result = select(function.isFunction, "f", "p")
+    result:join("__", function.name[])
+    case result.getLast() of
+        '!'
+            result:setLast('1')
+        '?'
+            result:setLast('2')
+        default
+            result += '0'
+    parse _, argument <- arguments
+        result:join("__", argument.typeNumber.toString(), "__", select(argument.mutable, "t", "f"))
+    result:join("__", function.priority.toString())
+
+func finalRuleTrue?(function, data, argumentsTypes, :compiledData)
+    rules
+        final = function == Function & data == Data & argumentsTypes == [OperandType] & compiledData == CompiledData
+        result = Bool
+    finalRuleIndex := 0
+    if function.isFunction
+        then
+            if function.rules.getLength() == 0 || function.rules.getLast().line[0][] != "result"
+                then errorNotResultType(function.name)
+            if function.rules.getLength() == 1
+                then return true
+            finalRuleIndex = function.rules.getLength() - 2
+        else if function.rules.getLength() == 0
+            then return true
+            else finalRuleIndex = function.rules.getLength() - 1
+    registers := [Bool].init(finalRuleIndex + 1)
+    registers:setFirst(true)
+    argumentsNames .= function.arguments.toStrings()
+    for registerIndex := 1; registerIndex <= finalRuleIndex; registerIndex++
+        currentRule .= function.rules[registerIndex - 1]
+        currentRule.noSubBlocks!()
+        tokenIndex := 0
+        currentRule.next!(tokenIndex, registerIndex.toString())
+        currentRule.next!(tokenIndex, "=")
+        expression .= currentRule.getRuleExpression(tokenIndex, argumentsNames, data)
+        register .= expression.compile(registers, registerIndex, data, argumentsNames, argumentsTypes, compiledData)
+        if register.item?()
+            then registers:setItem(registerIndex, register[])
+            else return false
+        currentRule.eol!(tokenIndex)
+    finalRule .= function.rules[finalRuleIndex]
+    finalRule.noSubBlocks!()
+    tokenIndex := 0
+    finalRule.next!(tokenIndex, "final")
+    finalRule.next!(tokenIndex, "=")
+    expression .= finalRule.getRuleExpression(tokenIndex, argumentsNames, data)
+    finalRegister .= expression.compile(registers, finalRuleIndex + 1, data, argumentsNames, argumentsTypes, compiledData)
+    result = finalRegister == Box(Bool).create(true)

@@ -1,0 +1,10 @@
+type FunctionArgument
+    name [UInt8]
+    mutable Bool
+
+func toStrings(arguments)
+    rules
+        final = arguments == [FunctionArgument]
+        result = [[UInt8]]
+    parse _, argument <- arguments
+        result += argument.name

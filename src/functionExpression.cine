@@ -1,0 +1,565 @@
+type FunctionExpression
+    expression [Fluid]
+
+type Operator
+    operator Token
+
+type LazyAnd
+    private_unneeded Bool
+
+type LazyOr
+    private_unneeded Bool
+
+type MutableAccess
+    private_unneeded Bool
+
+type ReadOnlyAccess
+    private_unneeded Bool
+
+type PreviousOperand
+    private_unneeded Bool
+
+type Select
+    coordinates Token
+    expressions [FunctionExpression]
+
+type BuiltInUse
+    operand Operand
+
+type BuiltInFree
+    operand Operand
+
+type BuiltInClone
+    operand Operand
+
+type BuiltInTypeNumber
+    operand Operand
+
+type MemberInExpression
+    token Token
+
+type OperandCreator
+    type OperandType
+    membersNames [[UInt8]]
+    membersValues [FunctionExpression]
+
+type FunctionOperand
+    functionName Token
+    arguments [FunctionTypeArgument]
+    haveResult Bool
+
+type FunctionOperandCall
+    operand Operand
+    arguments [FunctionExpression]
+
+func getItem(functionExpression)
+    rules
+        final = functionExpression == FunctionExpression
+        result = [Fluid]
+    result = functionExpression.expression
+
+func compile(expression, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData, haveResult, expectedType, :tmpOperands)
+    rules
+        1 = expression == FunctionExpression & compilingFunction == CompiledFunction & registersCount == UInt64
+        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        3 = haveResult == Bool & expectedType == OperandType & tmpOperands == Map([UInt8], Operand)
+        final = 1 & 2 & 3
+        result = Pair([UInt8], Operand)
+    done := false
+    for priority := 10.convertTo(UInt8); priority != UInt8.maxValue(); priority--
+        code_operand .= expression.computeOperations(priority, compilingFunction, registersCount, waitingFunctions, data, compiledData, haveResult, tmpOperands)
+        if code_operand.item?()
+            then
+                done = true
+                result = code_operand[]
+                break
+    if (result.second.value == "" && haveResult) || !(expectedType.empty?() || expectedType == result.second.type)
+        then errorWrongType(result.second.expressionForErrors)
+
+func computeOperations(expression, priority, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tmpOperands)
+    rules
+        1 = expression == FunctionExpression & priority == UInt8 & compilingFunction == CompiledFunction
+        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data
+        3 = compiledData == CompiledData & haveResult == Bool & tmpOperands == Map([UInt8],Operand)
+        final = 1 & 2 & 3
+        result = Box(Pair([UInt8], Operand))
+    case priority of
+        0
+            result = expression.compute0PriorityOperations(compilingFunction, registersCount, waitingFunctions, data, compiledData, haveResult, tmpOperands)
+        1
+            result = expression.compute1PriorityOperations(compilingFunction, registersCount, waitingFunctions, data, compiledData, haveResult, tmpOperands)
+        default
+            for index := expression[].getLength() - 1; index != UInt64.maxValue(); index--
+                expressionPart .= expression[][index]
+                case expressionPart.getInnerTypeNumber() of
+                    Operator
+                        if operator .= expressionPart[Operator]; operator.getPriority() == priority
+                            then
+                                functionName .= operator.toFunctionName()
+                                leftExpression .= FunctionExpression{expression: expression[].getFirstN(index)}
+                                code_operand1 .= leftExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+                                operand1 := code_operand1.second
+                                if operator.firstArgMutable?()
+                                    then if !operand1.mutable
+                                        then errorExpectMutable(operand1.expressionForErrors)
+                                    else operand1 = operand1.toReadOnly()
+                                code := code_operand1.first
+                                rightExpression .= FunctionExpression{expression: expression[].getAllExceptFirstN(index + 1)}
+                                code_operand2 .= rightExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+                                operand2 .= code_operand2.second.toReadOnly()
+                                code += code_operand2.first
+                                code_operand3 .= FunctionInExpression{name: functionName, arguments: [FunctionExpression]{{
+                                    FunctionExpression{expression: [Fluid]{operand1.toFluid()}},
+                                    FunctionExpression{expression: [Fluid]{operand2.toFluid()}}}}
+                                    .toOperand(compilingFunction, registersCount, waitingFunctions, !operator.firstArgMutable?(), data, compiledData)
+                                }
+                                code += code_operand3.first
+                                tmpOperands:put(code_operand3.second)
+                                result:put(Pair([UInt8], Operand).create(code, code_operand3.second))
+                                return
+                    LazyOr
+                        if priority == 9.convertTo(UInt8)
+                            then
+                                leftExpression .= FunctionExpression{expression: expression[].getFirstN(index)}
+                                code_operand1 .= leftExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType{baseType: Token{value: "Bool"}}, tmpOperands)
+                                operand1 := code_operand1.second.toReadOnly()
+                                code_register .= registersCount:createNewRegister(true, operand1.cType, operand1.value)
+                                anotherTmpOperand := Map([UInt8], Operand)
+                                rightExpression .= FunctionExpression{expression: expression[].getAllExceptFirstN(index + 1)}
+                                code_operand2 .= rightExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType{baseType: Token{value: "Bool"}}, anotherTmpOperand)
+                                operand2 .= code_operand2.second.toReadOnly()
+                                code .= code_operand1.first.join(code_register.first, "\tif (!", code_register.second, {
+                                    ") {\n", code_operand2.first, anotherTmpOperand:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData),
+                                    "\t", code_register.second, " = ", operand2.value, ";\n\t}\n")
+                                }
+                                operand1:value = code_register.second
+                                operand1:expressionForErrors:value = "(".join(operand1.expressionForErrors[], ") || (", operand2.expressionForErrors[], ")")
+                                tmpOperands:put(operand1)
+                                result:put(Pair([UInt8], Operand).create(code, operand1))
+                                return
+                    LazyAnd
+                        if priority == 7.convertTo(UInt8)
+                            then
+                                leftExpression .= FunctionExpression{expression: expression[].getFirstN(index)}
+                                code_operand1 .= leftExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType{baseType: Token{value: "Bool"}}, tmpOperands)
+                                operand1 := code_operand1.second.toReadOnly()
+                                code_register .= registersCount:createNewRegister(true, operand1.cType, operand1.value)
+                                anotherTmpOperand := Map([UInt8], Operand)
+                                rightExpression .= FunctionExpression{expression: expression[].getAllExceptFirstN(index + 1)}
+                                code_operand2 .= rightExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType{baseType: Token{value: "Bool"}}, anotherTmpOperand)
+                                operand2 .= code_operand2.second.toReadOnly()
+                                code .= code_operand1.first.join(code_register.first, "\tif (", code_register.second, {
+                                    ") {\n", code_operand2.first, anotherTmpOperand:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData),
+                                    "\t", code_register.second, " = ", operand2.value, ";\n\t}\n")
+                                }
+                                operand1:value = code_register.second
+                                operand1:expressionForErrors:value = "(".join(operand1.expressionForErrors[], ") && (", operand2.expressionForErrors[], ")")
+                                tmpOperands:put(operand1)
+                                result:put(Pair([UInt8], Operand).create(code, operand1))
+                                return
+
+func compute0PriorityOperations(expression, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tmpOperands)
+    rules
+        1 = expression == FunctionExpression & compilingFunction == CompiledFunction
+        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data
+        3 = compiledData == CompiledData & haveResult == Bool & tmpOperands == Map([UInt8],Operand)
+        final = 1 & 2 & 3
+        result = Box(Pair([UInt8], Operand))
+    for index := expression[].getLength() - 1; index != UInt64.maxValue(); index--
+        expressionPart .= expression[][index]
+        case expressionPart.getInnerTypeNumber() of
+            Operand
+                result:put(Pair([UInt8], Operand).create("", expressionPart[Operand]))
+                return
+            MutableAccess
+                leftExpression .= FunctionExpression{expression: expression[].getFirstN(index)}
+                code_operand .= leftExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+                if code_operand.second.mutable
+                    then
+                        result:put(code_operand)
+                        return
+                    else errorExpectMutable(code_operand.second.expressionForErrors)
+            ReadOnlyAccess
+                leftExpression .= FunctionExpression{expression: expression[].getFirstN(index)}
+                code_operand .= leftExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+                result:put(Pair([UInt8], Operand).create(code_operand.first, code_operand.second.toReadOnly()))
+                return
+            FunctionExpression
+                code_operand .= expressionPart[FunctionExpression].compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, haveResult, OperandType, tmpOperands)
+                result:put(code_operand)
+                return
+            Select
+                select_ .= expressionPart[Select]
+                anotherTmpOperand := Map([UInt8], Operand)
+                code_predicate .= select_.expressions[0].compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType{baseType: Token{value: "Bool"}}, anotherTmpOperand)
+                predicate .= code_predicate.second.toReadOnly()
+                code := code_predicate.first + anotherTmpOperand:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                code_firstOperand .= select_.expressions[1].compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, anotherTmpOperand)
+                firstOperand := code_firstOperand.second
+                code_selectOperandName .= registersCount:createNewRegister(true, firstOperand.cType, "")
+                code:join(code_selectOperandName.first, "\tif (", predicate.value, "){\n", code_firstOperand.first)
+                if anotherTmpOperand[firstOperand.value].item?()
+                    then anotherTmpOperand -= firstOperand.value
+                    else
+                        firstOperand = firstOperand.toReadOnly()
+                        code += firstOperand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                code:join(anotherTmpOperand:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), {
+                    "\t", code_selectOperandName.second, " = ", firstOperand.value, ";\n\t} else {\n")
+                }
+                code_secondOperand .= select_.expressions[2].compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, firstOperand.type, anotherTmpOperand)
+                secondOperand := code_secondOperand.second
+                code += code_secondOperand.first
+                if anotherTmpOperand[secondOperand.value].item?()
+                    then anotherTmpOperand -= secondOperand.value
+                    else
+                        secondOperand = secondOperand.toReadOnly()
+                        code += secondOperand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                code:join(anotherTmpOperand:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), {
+                    "\t", code_selectOperandName.second, " = " + secondOperand.value, ";\n\t}\n")
+                }
+                firstOperand:expressionForErrors = select_.coordinates
+                firstOperand:expressionForErrors:value:join("(", predicate.expressionForErrors[], ", ", firstOperand.expressionForErrors[], ", ", secondOperand.expressionForErrors[], ")")
+                firstOperand:value = code_selectOperandName.second
+                tmpOperands:put(firstOperand)
+                result:put(Pair([UInt8], Operand).create(code, firstOperand))
+                return
+            BuiltInFree
+                code .= expressionPart[BuiltInFree].operand.toReadOnly().freeMembers(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                result:put(Pair([UInt8], Operand).create(code, Operand))
+                return
+            BuiltInUse
+                code .= expressionPart[BuiltInUse].operand.toReadOnly().useMembers(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                result:put(Pair([UInt8], Operand).create(code, Operand))
+                return
+            BuiltInClone
+                code_operand .= expressionPart[BuiltInClone].operand.toReadOnly().cloneMembers(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                tmpOperands:put(code_operand.second)
+                result:put(code_operand)
+                return
+            BuiltInTypeNumber
+                operand .= expressionPart[BuiltInTypeNumber].operand
+                result:put(Pair([UInt8], Operand).create("", operand.expressionForErrors.replaceValue(operand.typeNumber.toString()).constIntToOperand(data, compiledData)))
+                return
+            FunctionInExpression
+                function := expressionPart[FunctionInExpression]
+                code := ""
+                if function.arguments.getLength() != 0
+                    then if function.arguments[0].expression[0].getInnerTypeNumber() == PreviousOperand.getTypeNumber()
+                        then
+                            leftExpression .= FunctionExpression{expression: expression[].getFirstN(index)}
+                            code_leftOperand .= leftExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+                            code = code_leftOperand.first
+                            function:arguments:setFirst(FunctionExpression{expression: [Fluid]{code_leftOperand.second.toFluid()}})
+                code_operand .= function.toOperand(compilingFunction, registersCount, waitingFunctions, haveResult, data, compiledData)
+                code += code_operand.first
+                tmpOperands:put(code_operand.second)
+                result:put(Pair([UInt8], Operand).create(code, code_operand.second))
+                return
+            MemberInExpression
+                memberName .= expressionPart[MemberInExpression].token
+                leftExpression .= FunctionExpression{expression: expression[].getFirstN(index)}
+                code_leftOperand .= leftExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+                leftOperand .= code_leftOperand.second
+                leftOperandType .= leftOperand.type.compile(data, compiledData)
+                memberType .= leftOperandType.members[memberName[]]
+                if memberType.empty?()
+                    then errorNotExist(memberName, "type member")
+                compiledMemberType .= memberType[].compile(data, compiledData)
+                resultOperand := Operand{{
+                    cType: compiledMemberType.cType,
+                    expressionForErrors: leftOperand.expressionForErrors,
+                    type: memberType[],
+                    typeNumber: compiledMemberType.typeNumber,
+                    haveLink: compiledMemberType.haveLink,
+                    mutable: leftOperand.mutable}
+                }
+                resultOperand:expressionForErrors:value = "(".join(resultOperand.expressionForErrors[], ")")
+                if resultOperand.mutable
+                    then
+                        resultOperand:value = "&((".join(leftOperand.value, ")->", memberName[], "_)")
+                        resultOperand:expressionForErrors:value += ':'
+                    else
+                        resultOperand:value = "(".join(leftOperand.value, ").", memberName[], "_")
+                        resultOperand:expressionForErrors:value += '.'
+                resultOperand:expressionForErrors:value += memberName[]
+                result:put(Pair([UInt8], Operand).create(code_leftOperand.first, resultOperand))
+                return
+            OperandCreator
+                operandCreator .= expressionPart[OperandCreator]
+                type .= operandCreator.type.compile(data, compiledData)
+                resultOperand := Operand
+                code := ""
+                if operandCreator.membersValues.getLength() == 0
+                    then resultOperand = Operand{{
+                            value: "(".join(type.cType, "){0}"),
+                            cType: type.cType,
+                            expressionForErrors: operandCreator.type.toToken(),
+                            type: operandCreator.type,
+                            typeNumber: type.typeNumber,
+                            haveLink: type.haveLink,
+                            constant: true}
+                        }
+                    else
+                        code_register .= createNewRegister(registersCount, true, type.cType, "")
+                        register .= code_register.second
+                        resultOperand = Operand{{
+                            value: register,
+                            cType: type.cType,
+                            expressionForErrors: operandCreator.type.toToken(),
+                            type: operandCreator.type,
+                            typeNumber: type.typeNumber,
+                            haveLink: type.haveLink}
+                        }
+                        resultOperand:expressionForErrors:value += "{"
+                        code = code_register.first
+                        if operandCreator.type.baseType[] == "Slice"
+                            then
+                                itemType .= operandCreator.type.arguments[0].compile(data, compiledData)
+                                itemsLength .= operandCreator.membersValues.getLength().toString()
+                                code:join({
+                                    "\t", register, " = (", type.cType, "){.length = ", itemsLength, ", ",
+                                    ".capacity = ", itemsLength, ", ",
+                                    ".initCapacity = ", itemsLength, ", ")
+                                }
+                                code:join({
+                                    ".array = (", itemType.cType, "*)(calloc(", itemsLength, ", sizeof(", itemType.cType, "))), ",
+                                    ".useCounter = (uint64_t*)(malloc(sizeof(uint64_t))), .isString = false};\n\t",
+                                    register, ".items = ", register, ".array;\n\t")
+
+                                }
+                                code:join({
+                                    "if (__builtin_expect((", register, ".array == NULL) || (", register, ".useCounter == NULL), false)){\n\tfprintf(stderr, \042Not enought memory.\\n\042);\n\tabort();\n\t}\n\t*(",
+                                    register, ".useCounter) = 1;\n")
+                                }
+                                parse valueIndex, value <- operandCreator.membersValues
+                                    code_operand .= value.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, operandCreator.type.arguments[0], tmpOperands)
+                                    operand := code_operand.second
+                                    resultOperand:expressionForErrors:value:join(operand.expressionForErrors[], ", ")
+                                    if tmpOperands[operand.value].item?()
+                                        then tmpOperands -= operand.value
+                                        else
+                                            operand = operand.toReadOnly()
+                                            code += operand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                                    code:join(code_operand.first, "\t", register, ".items[", valueIndex.toString(), "] = ", operand.value, ";\n")
+                                resultOperand:expressionForErrors:value = resultOperand.expressionForErrors[].getAllExceptLastN(2)
+                            else
+                                members := [[UInt8]].init(operandCreator.membersValues.getLength())
+                                parse memberIndex, member <- operandCreator.membersValues
+                                    memberType .= type.members[operandCreator.membersNames[memberIndex]][]
+                                    code_operand .= member.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, memberType, tmpOperands)
+                                    code += code_operand.first
+                                    operand := code_operand.second
+                                    resultOperand:expressionForErrors:value:join(operandCreator.membersNames[memberIndex], ": ", operand.expressionForErrors[], ", ")
+                                    if tmpOperands[operand.value].item?()
+                                        then tmpOperands -= operand.value
+                                        else
+                                            operand = operand.toReadOnly()
+                                            code += operand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                                    members:setItem(memberIndex, operand.value)
+                                code:join("\t", register, " = (", type.cType, "){")
+                                parse memberIndex, memberName <- operandCreator.membersNames
+                                    code:join(".", memberName, "_ = ", members[memberIndex], ", ")
+                                resultOperand:expressionForErrors:value = resultOperand.expressionForErrors[].getAllExceptLastN(2)
+                                code = code.getAllExceptLastN(2)
+                                code += "};\n"
+                        resultOperand:expressionForErrors:value += '}'
+                tmpOperands:put(resultOperand)
+                result:put(Pair([UInt8], Operand).create(code, resultOperand))
+                return
+            FunctionOperand
+                functionOperand .= expressionPart[FunctionOperand]
+                expressionForErrors := functionOperand.functionName
+                expressionForErrors:value = "@".join(expressionForErrors[], "(")
+                fakeArguments := [Operand].init(functionOperand.arguments.getLength())
+                parse argumentIndex, argument <- functionOperand.arguments
+                    if argument.mutable
+                        then expressionForErrors:value += ':'
+                    expressionForErrors:value:join(argument.type.toToken()[], ", ")
+                    compiledArgumentType .= argument.type.compile(data, compiledData)
+                    fakeArguments:setItem(argumentIndex, Operand{type: argument.type, mutable: argument.mutable, cType: compiledArgumentType.cType, typeNumber:compiledArgumentType.typeNumber, haveLink:compiledArgumentType.haveLink})
+                if expressionForErrors[].hasSuffix?(", ")
+                    then expressionForErrors:value = expressionForErrors[].getAllExceptLastN(2)
+                expressionForErrors:value += ")"
+                function .= data.getFunction(functionOperand.functionName, fakeArguments, functionOperand.haveResult, compiledData)
+                parse index, argument <- function.arguments
+                    if argument.mutable != fakeArguments[index].mutable
+                        then errorFunctionNotExist(functionOperand.functionName, functionOperand.haveResult, fakeArguments)
+                precompiledFunction .= function.precompile(data, fakeArguments, compiledData)
+                waitingFunctions += Pair(Function, [Operand]).create(function, fakeArguments)
+                resultOperandType .= OperandType{baseType: Token{value: "@"}, functionType: precompiledFunction.type}
+                compiledResultOperandType .= resultOperandType.compile(data, compiledData)
+                resultOperand .= Operand{{
+                    value: "&" + precompiledFunction.cName,
+                    cType: compiledResultOperandType.cType,
+                    expressionForErrors: expressionForErrors,
+                    type: resultOperandType,
+                    typeNumber: compiledResultOperandType.typeNumber,
+                    haveLink: compiledResultOperandType.haveLink}
+                }
+                tmpOperands:put(resultOperand)
+                result:put(Pair([UInt8], Operand).create("", resultOperand))
+                return
+            FunctionOperandCall
+                code := ""
+                resultOperand := Operand
+                functionOperandCall .= expressionPart[FunctionOperandCall]
+                expressionForErrors := functionOperandCall.operand.expressionForErrors
+                if functionOperandCall.arguments.getLength() != functionOperandCall.operand.type.functionType.arguments.getLength() || (functionOperandCall.operand.type.functionType.result.getLength() == 1) != haveResult
+                    then errorNotExpectedToken(functionOperandCall.operand.expressionForErrors, "")
+                arguments := [Operand].init(functionOperandCall.arguments.getLength())
+                parse argumentIndex, argumentExpression <- functionOperandCall.arguments
+                    code_operand .= argumentExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, functionOperandCall.operand.type.functionType.arguments[argumentIndex].type, tmpOperands)
+                    code += code_operand.first
+                    operand := code_operand.second
+                    if functionOperandCall.operand.type.functionType.arguments[argumentIndex].mutable
+                        then if !operand.mutable
+                            then errorExpectMutable(operand.expressionForErrors)
+                        else if operand.mutable
+                            then operand = operand.toReadOnly()
+                    arguments:setItem(argumentIndex, operand)
+                functionCall := functionOperandCall.operand.toReadOnly().value + '('
+                expressionForErrors:value += '('
+                if arguments.getLength() != 0
+                    then
+                        parse _, argument <- arguments
+                            functionCall:join(argument.value, ", ")
+                            expressionForErrors:value:join(argument.expressionForErrors[], ", ")
+                        functionCall = functionCall.getAllExceptLastN(2)
+                        expressionForErrors:value = expressionForErrors[].getAllExceptLastN(2)
+                functionCall += ')'
+                expressionForErrors:value += ')'
+                if haveResult
+                    then
+                        resultType .= functionOperandCall.operand.type.functionType.result[0]
+                        compiledResultType .= resultType.compile(data, compiledData)
+                        code_register .= registersCount:createNewRegister(false, compiledResultType.cType, functionCall)
+                        code += code_register.first
+                        resultOperand = Operand{{
+                            value: code_register.second,
+                            cType: compiledResultType.cType,
+                            expressionForErrors: expressionForErrors,
+                            type: resultType,
+                            typeNumber: compiledResultType.typeNumber,
+                            haveLink: compiledResultType.haveLink}
+                        }
+                    else code:join("\t", functionCall, ";\n")
+                result:put(Pair([UInt8], Operand).create(code, resultOperand))
+                return
+
+func compute1PriorityOperations(expression, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tmpOperands)
+    rules
+        1 = expression == FunctionExpression & compilingFunction == CompiledFunction
+        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data
+        3 = compiledData == CompiledData & haveResult == Bool & tmpOperands == Map([UInt8],Operand)
+        final = 1 & 2 & 3
+        result = Box(Pair([UInt8], Operand))
+    for index := expression[].getLength() - 1; index != UInt64.maxValue(); index--
+        if expressionPart .= expression[][index]; expressionPart.getInnerTypeNumber() == Operator.getTypeNumber()
+            then
+                operator .= expressionPart[Operator].operator
+                if operator[] == "!"
+                    then
+                        rightExpression .= FunctionExpression{expression: expression[].getAllExceptFirstN(index + 1)}
+                        code_operand .= rightExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+                        code := code_operand.first
+                        resultOperand := code_operand.second.toReadOnly()
+                        functionName .= operator.replaceValue("neg")
+                        code_resultOperand .= FunctionInExpression{name: functionName, arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{resultOperand.toFluid()}}}}{
+                            .toOperand(compilingFunction, registersCount, waitingFunctions, haveResult, data, compiledData)
+                        }
+                        code += code_resultOperand.first
+                        resultOperand = code_resultOperand.second
+                        tmpOperands:put(resultOperand)
+                        result:put(Pair([UInt8], Operand).create(code, resultOperand))
+                        return
+
+func getPriority(operator)
+    rules
+        final = operator == Operator
+        result = UInt8
+    case operator.operator[] of
+        "*"; "/"; "%"
+            result = 2.convertTo(UInt8)
+        "+"; "-"
+            result = 3.convertTo(UInt8)
+        ">>"; "<<"
+            result = 4.convertTo(UInt8)
+        ">"; ">="; "<"; "<="
+            result = 5.convertTo(UInt8)
+        "=="; "!="
+            result = 6.convertTo(UInt8)
+        "&"
+            result = 7.convertTo(UInt8)
+        "^"
+            result = 8.convertTo(UInt8)
+        "|"
+            result = 9.convertTo(UInt8)
+        "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; ">>="; "<<="
+            result = 10.convertTo(UInt8)
+
+func toFunctionName(operator)
+    rules
+        final = operator == operator
+        result = Token
+    result = operator.operator
+    case result[] of
+        "*"
+            result:value = "mul"
+        "/"
+            result:value = "div"
+        "%"
+            result:value = "mod"
+        "+"
+            result:value = "add"
+        "-"
+            result:value = "sub"
+        ">>"
+            result:value = "shr"
+        "<<"
+            result:value = "shl"
+        ">"
+            result:value = "greater"
+        ">="
+            result:value = "greaterOrEqual"
+        "<"
+            result:value = "less"
+        "<="
+            result:value = "lessOrEqual"
+        "=="
+            result:value = "equal"
+        "!="
+            result:value = "notEqual"
+        "&"
+            result:value = "and"
+        "^"
+            result:value = "xor"
+        "|"
+            result:value = "or"
+        "+="
+            result:value = "addEq"
+        "-="
+            result:value = "subEq"
+        "*="
+            result:value = "mulEq"
+        "/="
+            result:value = "divEq"
+        "%="
+            result:value = "modEq"
+        "&="
+            result:value = "andEq"
+        "|="
+            result:value = "orEq"
+        "^="
+            result:value = "xorEq"
+        ">>="
+            result:value = "shrEq"
+        "<<="
+            result:value = "shlEq"
+
+func firstArgMutable?(operator)
+    rules
+        final = operator == Operator
+        result = Bool
+    case operator.operator[] of
+        "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; ">>="; "<<="
+            result = true

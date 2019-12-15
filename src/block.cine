@@ -1,0 +1,1769 @@
+type Block
+    line [Token]
+    subBlocks [Block]
+
+enums
+    pir_Nothing
+    pir_Register
+    pir_Argument
+
+    pif_Nothing
+    pif_Access
+    pif_Operand
+    pif_Minus
+
+func toFunction(block)
+    rules
+        final = block == Block
+        result = Function
+    tokenIndex := 0
+    if result:isFunction = block.next?(tokenIndex, "func"); !result.isFunction
+        then tokenIndex++
+    result:name = block.getFunctionName(tokenIndex, true)
+    block.next!(tokenIndex, "(")
+    if !block.next?(tokenIndex, ")")
+        then
+            result:arguments = block.getFunctionArguments(tokenIndex)
+            block.next!(tokenIndex, ")")
+    if tokenIndex < block.line.getLength()
+        then
+            if block.next?(tokenIndex, "#")
+                then if priority .= block.next(tokenIndex); priority[].getLength() == 1 && priority[][0].digit?() && priority[][0] != '0'
+                    then result:priority = priority[][0] - '1'
+            block.eol!(tokenIndex)
+        else result:priority = 4.convertTo(UInt8)
+    body := block.subBlocks
+    bodyIndex := 0
+    for bodyIndex != body.getLength()
+        subBlock .= body[bodyIndex]
+        case subBlock.line[0][] of
+            "rules"
+                if subBlock.line.getLength() == 1
+                    then
+                        subBlock.subBlocks!()
+                        result:rules = subBlock.subBlocks
+                        bodyIndex++
+                    else break all
+            "include"
+                parse _, cLib <- subBlock.line.getAllExceptFirst()
+                    result:cLibs += cLib[]
+                bodyIndex++
+            default
+                break all
+    result:body = body.getAllExceptFirstN(bodyIndex)
+
+func toType(block)
+    rules
+        final = block == Block
+        result = Type
+    tokenIndex := 1
+    result:name = block.getTypeName(tokenIndex, true)
+    if block.next?(tokenIndex, "(")
+        then
+            result:arguments = block.getTypeArguments(tokenIndex)
+            block.next!(tokenIndex, ")")
+    if block.next?(tokenIndex, "C")
+        then
+            result:c = true
+            block.next!(tokenIndex, "(")
+            result:align = block.getAlign(tokenIndex)
+            block.next!(tokenIndex, ",")
+            if result:baseHaveLink = block.next?(tokenIndex, "link"); result.baseHaveLink
+                then
+                    result:haveLink = true
+                    block.next!(tokenIndex, ",")
+            result:cStructDef = block.getString(tokenIndex)
+            block.next!(tokenIndex, ",")
+            result:cType = block.getString(tokenIndex)
+            for block.next?(tokenIndex, ",")
+                result:cLibs += block.getString(tokenIndex)
+            block.next!(tokenIndex, ")")
+    block.eol!(tokenIndex)
+    if result.c
+        then block.noSubBlocks!()
+        else result:members = block.subBlocks.getTypeMembers(result.arguments)
+
+proc eol!(block, tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+    if tokenIndex < block.line.getLength()
+        then errorNotExpectedToken(block.line.getLast(), "")
+
+proc subBlocks!(block)
+    rules
+        final = block == Block
+    if block.subBlocks.getLength() == 0
+        then
+            token .= block.line[0]
+            errorExpectSubBlock(token.file, token.line + 1)
+
+proc noSubBlocks!(block)
+    rules
+        final = block == Block
+    if block.subBlocks.getLength() != 0
+        then errorNotExpectedToken(block.subBlocks[0].line[0], "")
+
+func getTypeName(block, :tokenIndex, fullCheck)
+    rules
+        final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
+        result = Token
+    result = block.next(tokenIndex)
+    nameCorrect := result[][0].upper?()
+    if nameCorrect
+        then
+            parse _, char <- result[].getAllExceptFirst()
+                nameCorrect = nameCorrect && char.fromName?()
+            nameCorrect = nameCorrect && !result[].contain?("__")
+    if nameCorrect && fullCheck
+        then nameCorrect = result[] != "C"
+    if !nameCorrect
+        then errorWrongName(result, "type")
+
+func next?(block, :tokenIndex, variant)
+    rules
+        final = block == Block & tokenIndex == UInt64 & variant == [UInt8]
+        result = Bool
+    if tokenIndex < block.line.getLength()
+        then if token := block.line[tokenIndex]; token[] == variant
+            then
+                result = true
+                tokenIndex++
+
+func next?(block, :tokenIndex, variant1, variant2)
+    rules
+        final = block == Block & tokenIndex == UInt64 & variant1 == [UInt8] & variant2 == [UInt8]
+        result = Bool
+    if tokenIndex < block.line.getLength()
+        then if token := block.line[tokenIndex]; token[] == variant1 || token[] == variant2
+            then
+                result = true
+                tokenIndex++
+
+func getTypeArguments(block, :tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+        result = [[UInt8]]
+    for
+        name .= block.getTypeArgumentName(tokenIndex)
+        parse _, existedArgument <- result
+            if existedArgument == name[]
+                then errorAlreadyExist(name, "type argument")
+        result += name[]
+        if !block.next?(tokenIndex, ",")
+            then break
+
+proc next!(block, :tokenIndex, variant)
+    rules
+        final = block == Block & tokenIndex == UInt64 & variant == [UInt8]
+    if !block.next?(tokenIndex, variant)
+        then if tokenIndex < block.line.getLength()
+            then errorNotExpectedToken(block.line[tokenIndex], variant)
+            else errorNotExpectedEOL(block.line.getLast(), variant)
+
+func getAlign(block, :tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+        result = UInt8
+    if token .= block.next(tokenIndex); token[].getLength() == 1 && token[][0].digit?() && token[][0] != '0'
+        then result = token[][0] - '0'
+        else errorNotExpectedToken(token, "")
+
+func getString(block, :tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+        result = [UInt8]
+    token .= block.next(tokenIndex)
+    if token[][0] != '\042'
+        then errorNotExpectedToken(token, "")
+    result = token[].getAllExceptFirst().getAllExceptLast()
+
+func getTypeMembersFromOneLine(block, argumentsNames)
+    rules
+        final = block == Block & argumentsNames == [[UInt8]]
+        result = [TypeMember]
+    block.noSubBlocks!()
+    tokenIndex := 0
+    membersNames := [Token]
+    for
+        memberName .= block.getTypeMemberName(tokenIndex)
+        membersNames += memberName
+        if !block.next?(tokenIndex, ",")
+            then break
+    membersType .= block.getOperandType(tokenIndex, argumentsNames, false, false)
+    block.eol!(tokenIndex)
+    parse _, memberName <- membersNames
+        result += TypeMember{name: memberName, type:membersType}
+
+func getTypeMemberName(block, :tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+        result = Token
+    result = block.next(tokenIndex)
+    nameCorrect := result[][0].lower?()
+    if nameCorrect
+        then
+            parse _, char <- result[].getAllExceptFirst()
+                nameCorrect = nameCorrect && char.fromName?()
+            nameCorrect = nameCorrect && !result[].contain?("__")
+    if !nameCorrect
+        then errorWrongName(result, "type member")
+
+func getOperandType(block, :tokenIndex, argumentsNames, allowUndefined, allowIndexing)
+    rules
+        final = block == Block & tokenIndex == UInt64 & argumentsNames == [[UInt8]] & allowUndefined == Bool & allowIndexing == Bool
+        result = OperandType
+    token .= block.next(tokenIndex)
+    mif
+        token[] == "@"
+            result:baseType = token
+            block.next!(tokenIndex, "(")
+            if !block.next?(tokenIndex, ")")
+                then
+                    result:functionType:arguments = block.getFunctionTypeArguments(tokenIndex, argumentsNames, allowUndefined, allowIndexing)
+                    block.next!(tokenIndex, ")")
+            if block.next?(tokenIndex, "->")
+                then result:functionType:result += block.getOperandType(tokenIndex, argumentsNames, allowUndefined, allowIndexing)
+        token[][0] == '['
+            result:baseType = token.replaceValue("Slice")
+            result:arguments += block.getOperandType(tokenIndex, argumentsNames, allowUndefined, allowIndexing)
+            block.next!(tokenIndex, "]")
+        token[][0].lower?()
+            tokenIndex--
+            if allowIndexing
+                then _ = block.getFunctionArgumentName(tokenIndex, false)
+                else _ = block.getTypeArgumentName(tokenIndex)
+            argumentExist := false
+            parse _, existedArgument <- argumentsNames
+                if argumentExist = existedArgument == token[]; argumentExist
+                    then break
+            if !argumentExist
+                then
+                    whatNotExist .= select(allowIndexing, "function argument", "type argument")
+                    errorNotExist(token, whatNotExist)
+            result:baseType = token
+            if allowIndexing
+                then for block.next?(tokenIndex, "[")
+                    result:baseType:value += '['
+                    index .= block.next(tokenIndex)
+                    if index[] != "-"
+                        then index.integer!(false, false)
+                    block.next!(tokenIndex, "]")
+                    result:baseType:value:join(index[], "]")
+        allowUndefined && token[] == "_"
+            result:baseType = token
+        default
+            tokenIndex--
+            _ = block.getTypeName(tokenIndex, false)
+            result:baseType = token
+            if block.next?(tokenIndex, "(")
+                then
+                    for
+                        result:arguments += block.getOperandType(tokenIndex, argumentsNames, allowUndefined, allowIndexing)
+                        if !block.next?(tokenIndex, ",")
+                            then break
+                    block.next!(tokenIndex, ")")
+
+func next(block, :tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+        result = Token
+    if tokenIndex >= block.line.getLength()
+        then errorNotExpectedEOL(block.line.getLast(), "")
+    result = block.line[tokenIndex]
+    tokenIndex++
+
+func getFunctionTypeArguments(block, :tokenIndex, argumentsNames, allowUndefined, allowIndexing)
+    rules
+        final = block == Block & tokenIndex == UInt64 & argumentsNames == [[UInt8]] & allowUndefined == Bool & allowIndexing == Bool
+        result = [FunctionTypeArgument]
+    for
+        mutable .= block.next?(tokenIndex, ":")
+        result += FunctionTypeArgument{mutable: mutable, type: block.getOperandType(tokenIndex, argumentsNames, allowUndefined, allowIndexing)}
+        if !block.next?(tokenIndex, ",")
+            then break
+
+func getFunctionArgumentName(block, :tokenIndex, fullCheck)
+    rules
+        final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
+        result = Token
+    result = block.next(tokenIndex)
+    nameCorrect := result[][0].lower?()
+    if nameCorrect
+        then
+            parse _, char <- result[].getAllExceptFirst()
+                nameCorrect = nameCorrect && char.fromName?()
+            if nameCorrect
+                then nameCorrect = !result[].contain?("__")
+    if nameCorrect && fullCheck
+        then case result[] of
+            "if"; "case"; "flag"; "of"; "for"; "return"; {
+                "result"; "break"; "continue";
+                "mif"; "parse"; "true"; "false"
+            }
+                nameCorrect = false
+            default
+                nameCorrect = !result[].hasPrefix?("builtIn")
+    if !nameCorrect
+        then errorWrongName(result, "function argument")
+
+func getTypeArgumentName(block, :tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+        result = Token
+    result = block.next(tokenIndex)
+    nameCorrect := result[][0].lower?()
+    if nameCorrect
+        then
+            parse _, char <- result[].getAllExceptFirst()
+                nameCorrect = nameCorrect && char.fromName?()
+            nameCorrect = nameCorrect && !result[].contain?("__")
+    if !nameCorrect
+        then errorWrongName(result, "type argument")
+
+func getFunctionName(block, :tokenIndex, fullCheck)
+    rules
+        final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
+        result = Token
+    result = block.next(tokenIndex)
+    nameCorrect := result[][0].lower?()
+    if nameCorrect
+        then
+            parse _, char <- result[].getAllExceptFirst()
+                nameCorrect = nameCorrect && char.fromName?()
+            nameCorrect = nameCorrect && !result[].contain?("__")
+    if block.next?(tokenIndex, "?", "!")
+        then result:value += block.line[tokenIndex - 1][]
+    if nameCorrect && fullCheck
+        then case result[] of
+            "func"; "proc"; "enslave"; "select"; "if"; "case"; "for"; "return"; "result"
+                nameCorrect = false
+            default
+                nameCorrect = !result[].hasPrefix?("builtIn")
+    if !nameCorrect
+        then errorWrongName(result, "function")
+
+func getFunctionArguments(block, :tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+        result = [FunctionArgument]
+    for
+        mutable .= block.next?(tokenIndex, ":")
+        name .= block.getFunctionArgumentName(tokenIndex, true)
+        parse _, existedArgument <- result
+            if existedArgument.name == name[]
+                then errorAlreadyExist(name, "function argument")
+        result += FunctionArgument{name: name[], mutable:mutable}
+        if !block.next?(tokenIndex, ",")
+            then break
+
+func replaceCoordinates(block, tokenWithCoordinates)
+    rules
+        final = block == Block & tokenWithCoordinates == Token
+        result = Block
+    result:line = [Token].init(block.line.getLength())
+    result:subBlocks = [Block].init(block.subBlocks.getLength())
+    parse tokenIndex, token <- block.line
+        result:line:setItem(tokenIndex, tokenWithCoordinates.replaceValue(token[]))
+    parse subIndex, subBlock <- block.subBlocks
+        result:subBlocks:setItem(subIndex, subBlock.replaceCoordinates(tokenWithCoordinates))
+
+func compile(functionExpression, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = functionExpression == Block & compilingFunction == CompiledFunction & currentLevel == UInt64
+        2 = namedOperands == Map([UInt8], [NamedOperand]) & registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64
+        3 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    tokenIndex := 0
+    case functionExpression.next(tokenIndex)[] of
+        "return"
+            result = functionExpression.compileReturn(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData)
+        "for"
+            result = functionExpression.compileFor(compilingFunction, currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        "break"
+            result = functionExpression.compileBreak(currentLevel, compilingFunction, namedOperands, registersCount, breakCounter, waitingFunctions, data, compiledData)
+        "continue"
+            result = functionExpression.compileContinue(currentLevel, compilingFunction, namedOperands, registersCount, continueCounter, waitingFunctions, data, compiledData)
+        "mif"
+            result = functionExpression.compileMif(compilingFunction, currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        "case"
+            result = functionExpression.compileCase(compilingFunction, currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        "enslave"
+            functionExpression.compileEnslave(currentLevel, namedOperands)
+        "if"
+            result = functionExpression.compileIf(compilingFunction, currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        "flag"
+            result = functionExpression.compileFlag(compilingFunction, currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        "haveLink"
+            result = functionExpression.compileHaveLink(compilingFunction, currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        "parse"
+            result = functionExpression.compileParse(compilingFunction, currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        "C"
+            result = functionExpression.insertCBlock(compilingFunction, data, compiledData)
+        default
+            isEqExpression := true
+            if functionExpression.line.getLength() > 1
+                then case functionExpression.line[1][] of
+                    ":="; ".="; "<:>"; "<.>"
+                        isEqExpression = false
+            if isEqExpression
+                then result = functionExpression.compileEqExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData)
+                else result = functionExpression.compileNewVariableExpression(currentLevel, compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData)
+
+func getRuleExpression(rule, :tokenIndex, argumentsNames, data)
+    rules
+        final = rule == Block & tokenIndex == UInt64 & argumentsNames == [[UInt8]] & data == Data
+        result = RuleExpression
+    rule.notEOL!(tokenIndex)
+    previous := pir_Nothing
+    for
+        if tokenIndex >= rule.line.getLength()
+            then break
+        token .= rule.next(tokenIndex)
+        case token[] of
+            "("
+                if previous == pir_Nothing
+                    then
+                        expression .= rule.getRuleExpression(tokenIndex, argumentsNames, data)
+                        result:expression += expression.toFluid()
+                        rule.next!(tokenIndex, ")")
+                        previous = pir_Register
+                    else errorNotExpectedToken(token, "")
+            ")"
+                if previous == pir_Register
+                    then
+                        tokenIndex--
+                        return
+                errorNotExpectedToken(token, "")
+            "!"
+                if previous == pir_Nothing
+                    then
+                        rule.notEOL!(tokenIndex)
+                        rule.next(tokenIndex).integer!(false, false)
+                        tokenIndex--
+                        result:expression += RuleOperator{operator: token}.toFluid()
+                    else errorNotExpectedToken(token, "")
+            "&"; "|"
+                if previous == pir_Register
+                    then
+                        result:expression += RuleOperator{operator: token}.toFluid()
+                        previous = pir_Nothing
+                    else errorNotExpectedToken(token, "")
+            "!="; "=="
+                if previous == pir_Argument
+                    then
+                        result:expression += RuleOperator{operator: token}.toFluid()
+                        type .= rule.getOperandType(tokenIndex, argumentsNames, true, true)
+                        type.type!(data)
+                        if type.baseType[] == "_"
+                            then errorNotExpectedToken(type.baseType, "")
+                        result:expression += RuleType{type: type}.toFluid()
+                        previous = pir_Register
+                    else errorNotExpectedToken(token, "")
+            ">"
+                if previous == pir_Argument
+                    then
+                        result:expression += RuleOperator{operator: token}.toFluid()
+                        group .= rule.next(tokenIndex)
+                        group.groupName!()
+                        data.groupExist!(group)
+                        result:expression += RuleGroup{group: group[]}.toFluid()
+                        previous = pir_Register
+                    else errorNotExpectedToken(token, "")
+            default
+                if previous == pir_Nothing
+                    then if token[][0].lower?()
+                        then
+                            tokenIndex--
+                            argument .= rule.getOperandType(tokenIndex, argumentsNames, false, true)
+                            result:expression += RuleFunctionArgument{argument: argument.baseType}.toFluid()
+                            previous = pir_Argument
+                        else
+                            if token[].integer?(false, false)
+                                then result:expression += RuleRegisterIndex{index: token}.toFluid()
+                                else errorNotExpectedToken(token, "")
+                            previous = pir_Register
+                    else errorNotExpectedToken(token, "")
+    if previous != pir_Register
+        then rule.notEOL!(tokenIndex)
+
+proc notEOL!(block, tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+    if tokenIndex >= block.line.getLength()
+        then errorNotExpectedEOL(block.line.getLast(), "")
+
+func compileReturn(returnBlock, compilingFunction, namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = returnBlock == Block & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = [UInt8]
+    returnBlock.noSubBlocks!()
+    if returnBlock.line.getLength() > 1
+        then
+            if compilingFunction.type.result.getLength() == 0
+                then errorNotExpectedToken(returnBlock.line[1], "")
+            tokenIndex := 1
+            tmpOperands := Map([UInt8], Operand)
+            code_operand .= returnBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, compilingFunction.type.result[0], tmpOperands)
+            returnBlock.eol!(tokenIndex)
+            result = code_operand.first
+            resultOperand .= namedOperands["result"][]
+            operand := code_operand.second
+            if tmpOperands[operand.value].item?()
+                then tmpOperands -= operand.value
+                else if !operand.value.hasSuffix?("{0}")
+                    then
+                        operand = operand.toReadOnly()
+                        result += operand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+            result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), resultOperand[0].operand.setOperand(operand, compilingFunction, registersCount, waitingFunctions, data, compiledData))
+    result:join(namedOperands.freeOperands(compilingFunction, 1, registersCount, waitingFunctions, data, compiledData),{
+        select(compilingFunction.type.result.getLength() == 0, "\treturn;\n", "\treturn result_;\n"))
+    }
+
+func compileFor(forBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = forBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    breakCounter++
+    continueCounter++
+    result = "\t{\n"
+    initExpression := Block
+    prediacteExpression := Block
+    endExpression := Block
+    tmpOperands := Map([UInt8], Operand)
+    separatorsIndexes := [UInt64]
+    parse index, token <- forBlock.line
+        if token[] == ";"
+            then separatorsIndexes += index
+    mif
+        separatorsIndexes.getLength() == 2
+            initExpression:line = forBlock.line.getSlice(1, separatorsIndexes[0])
+            prediacteExpression:line = forBlock.line.getSlice(separatorsIndexes[0] + 1, separatorsIndexes[1])
+            endExpression:line = forBlock.line.getAllExceptFirstN(separatorsIndexes[1] + 1)
+        separatorsIndexes.getLength() == 0
+            if forBlock.line.getLength() != 1
+                then prediacteExpression:line = forBlock.line.getAllExceptFirst()
+        default
+            if separatorsIndexes.getLength() == 1
+                then errorNotExpectedEOL(forBlock.line.getLast(), ";")
+                else errorNotExpectedToken(forBlock.line[separatorsIndexes[2]], "")
+    if initExpression.line.getLength() != 0
+        then result += initExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+    if endExpression.line.getLength() != 0
+        then result:join({
+                "\tbool __firstTime = true;\n\tfor (;;){\n\tif (!__firstTime){\n",
+                endExpression.compileEqExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData),
+                "\t} else {\t__firstTime = false;}\n")
+            }
+        else result += "\tfor (;;){\n"
+    if prediacteExpression.line.getLength() != 0
+        then
+            tokenIndex := 0
+            code_predicate .= prediacteExpression.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType{baseType: Token{value: "Bool"}}, tmpOperands)
+            if separatorsIndexes.getLength() == 0
+                then prediacteExpression.eol!(tokenIndex)
+            result += code_predicate.first
+            predicate .= code_predicate.second.toReadOnly()
+            result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), "\tif (!", predicate.value, "){break;};\n")
+    parse _, functionExpression <- forBlock.subBlocks
+        result += functionExpression.compile(compilingFunction, currentLevel + 2, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+    result:join(namedOperands:deleteLevel(compilingFunction, currentLevel + 2, registersCount, waitingFunctions, data, compiledData), {
+        "\t}\n", namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData))
+    }
+    breakCounter--
+    continueCounter--
+    if breakCounter != 0
+        then result += "\tif (__breakCounter != 0) {__breakCounter--; break;}\n"
+    if continueCounter != 0
+        then result += "\tif (__continueCounter != 0) {\n\t__continueCounter--;\n\tif (__continueCounter == 0) {\n\tcontinue;\n\t} else {break;}\n\t}\n"
+    result += "\t}\n"
+
+func compileBreak(breakBlock, currentLevel, compilingFunction, namedOperands, :registersCount, breakCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = breakBlock == Block & currentLevel == UInt64 & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & breakCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    breakBlock.noSubBlocks!()
+    deep := 1
+    if breakBlock.line.getLength() != 1
+        then
+            tokenIndex := 1
+            deepAsToken := breakBlock.next(tokenIndex)
+            breakBlock.eol!(tokenIndex)
+            mif
+                deepAsToken[] == "0"
+                    errorNotExpectedToken(deepAsToken, "")
+                deepAsToken[] == "all"
+                    deep = breakCounter
+                default
+                    deepAsToken.integer!(false, false)
+                    deep = UInt64.fromString(deepAsToken[])[]
+    if deep > breakCounter
+        then errorBreakOrContinueToDeep(breakBlock.line[0])
+    if deep != 1
+        then result = "\t__breakCounter = ".join((deep - 1).toString(), ";\n")
+    result:join(namedOperands.freeOperands(compilingFunction, currentLevel, registersCount, waitingFunctions, data, compiledData), "\tbreak;\n")
+
+func compileContinue(continueBlock, currentLevel, compilingFunction, namedOperands, :registersCount, continueCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = continueBlock == Block & currentLevel == UInt64 & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    continueBlock.noSubBlocks!()
+    deep := 1
+    if continueBlock.line.getLength() != 1
+        then
+            tokenIndex := 1
+            deepAsToken := continueBlock.next(tokenIndex)
+            continueBlock.eol!(tokenIndex)
+            mif
+                deepAsToken[] == "0"
+                    errorNotExpectedToken(deepAsToken, "")
+                deepAsToken[] == "first"
+                    deep = continueCounter
+                default
+                    deepAsToken.integer!(false, false)
+                    deep = UInt64.fromString(deepAsToken[])[]
+    if deep > continueCounter
+        then errorBreakOrContinueToDeep(continueBlock.line[0])
+    if deep != 1
+        then result = "\t__continueCounter = ".join((deep - 1).toString(), ";\n")
+    result:join(namedOperands.freeOperands(compilingFunction, currentLevel, registersCount, waitingFunctions, data, compiledData), select(deep == 1, "\tcontinue;\n", "\tbreak;\n"))
+
+func compileMif(mifBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = mifBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    mifBlock.eol!(1)
+    mifBlock.subBlocks!()
+    tmpOperands := Map([UInt8], Operand)
+    breakCounter++
+    result = "\t{\n\tint __mif_variant = 0;\n\tfor (;;){\n"
+    allVariants := mifBlock.subBlocks
+    haveDefault .= allVariants.getLast().line[0][] == "default" && allVariants.getLast().line.getLength() == 1
+    if haveDefault
+        then allVariants = allVariants.getAllExceptLast()
+    parse variantIndex, variants <- allVariants
+        separatorsIndexes := [UInt64]
+        parse index, token <- variants.line
+            if token[] == ";"
+                then separatorsIndexes += index
+        separatorsIndexes += variants.line.getLength()
+        previousLastIndex := 0
+        parse _, separatorIndex <- separatorsIndexes
+            predicateBlock .= Block{line: variants.line.getSlice(previousLastIndex, separatorIndex)}
+            previousLastIndex = separatorIndex + 1
+            tokenIndex := 0
+            code_predicate .= predicateBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType{baseType: Token{value: "Bool"}}, tmpOperands)
+            predicateBlock.eol!(tokenIndex)
+            result += code_predicate.first
+            predicate .= code_predicate.second.toReadOnly()
+            result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), {
+                "\tif (", predicate.value, "){__mif_variant = ", (variantIndex + 1).toString(), "; break;}\n")
+            }
+    result += "\tbreak;\n\t}\n\tswitch (__mif_variant){\n"
+    parse variantIndex, variants <- allVariants
+        variants.subBlocks!()
+        result:join("\tcase ", (variantIndex + 1).toString(), ":\n\t{\n")
+        functionExpressions := variants.subBlocks
+        fallthrough_ .= functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
+        if fallthrough_
+            then
+                if variantIndex == mifBlock.subBlocks.getLength() - 1
+                    then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
+                functionExpressions.getLast().noSubBlocks!()
+                functionExpressions = functionExpressions.getAllExceptLast()
+        parse _, functionExpression <- functionExpressions
+            result += functionExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        result:join(namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n", select(fallthrough_, "\t/* fall through */\n", "\tbreak;\n"))
+    if haveDefault
+        then
+            result += "\tdefault:\n\t{\n"
+            functionExpressions .= mifBlock.subBlocks.getLast().subBlocks
+            if functionExpressions.getLength() != 0 && functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
+                then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
+            parse _, functionExpression <- functionExpressions
+                result += functionExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+            result:join(namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n\tbreak;\n")
+    result += "\t}\n"
+    breakCounter--
+    if breakCounter != 0
+        then result += "\tif (__breakCounter != 0) {__breakCounter--; break;}\n"
+    if continueCounter != 0
+        then result += "\tif (__continueCounter != 0) {break;}\n"
+    result += "\t}\n"
+
+func compileCase(caseBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = caseBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    caseBlock.subBlocks!()
+    tokenIndex := caseBlock.line.getLength() - 1
+    caseBlock.next!(tokenIndex, "of")
+    tmpOperands := Map([UInt8], Operand)
+    blockWithCaseOperand .= Block{line: caseBlock.line.getAllExceptLast().getAllExceptFirst()}
+    tokenIndex = 0
+    code_caseOperand .= blockWithCaseOperand.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType, tmpOperands)
+    result += code_caseOperand.first
+    caseOperand .= code_caseOperand.second.toReadOnly()
+    wrongType := true
+    case caseOperand.type.toToken()[] of
+        "UInt8"; "UInt16"; "UInt32"; "UInt64"; "Int8"; "Int16"; "Int32"; "Int64"; "[UInt8]"
+            wrongType = false
+    if wrongType
+        then errorWrongType(caseOperand.expressionForErrors.replaceValue(caseOperand.type.toToken()[]))
+    allVariantsBlocks := caseBlock.subBlocks
+    haveDefault .= allVariantsBlocks.getLast().line[0][] == "default" && allVariantsBlocks.getLast().line.getLength() == 1
+    if haveDefault
+        then allVariantsBlocks = allVariantsBlocks.getAllExceptLast()
+    breakCounter++
+    mif
+        caseOperand.type.baseType[] == "Slice"
+            result:join("\tuint32_t variant__number = 0;\n\tswitch (", caseOperand.value, ".length) {\n")
+            allVariants := Map([UInt8], UInt64)
+            allVariantsByLength := Map(UInt64, [[UInt8]])
+            parse variantIndex, variants <- allVariantsBlocks
+                tokenIndex = 0
+                for
+                    variant := variants.next(tokenIndex)
+                    if variant[][0] != '\042'
+                        then errorNotExpectedToken(variant, "")
+                    if allVariants[variant[]].item?()
+                        then errorNotExpectedToken(variant, "")
+                    variant:value = variant[].getAllExceptFirst().getAllExceptLast()
+                    allVariants:add(variant[], variantIndex + 1)
+                    if existVariants .= allVariantsByLength[variant[].getLength()]; existVariants.item?()
+                        then allVariantsByLength:add(variant[].getLength(), existVariants[] + variant[])
+                        else allVariantsByLength:add(variant[].getLength(), [[UInt8]]{variant[]})
+                    if !variants.next?(tokenIndex, ";")
+                        then
+                            variants.eol!(tokenIndex)
+                            break
+            parse variantsLengths, variants <- allVariantsByLength
+                if variantsLengths == 0
+                    then result:join("\tcase 0:\n\t{\n\tvariant__number = ", allVariants[""].toString(), ";\n\t}\n\tbreak;\n")
+                    else result:join("\tcase ", variantsLengths.toString(), ":\n\t{\n", variants.toCSwitch("", caseOperand.value + ".items", allVariants), "\t}\n\tbreak;\n")
+            result += "\t}\n\tswitch (variant__number) {\n"
+            parse variantIndex, variants <- allVariantsBlocks
+                result:join("\tcase ", (variantIndex + 1).toString(), ":\n")
+                variants.subBlocks!()
+                functionExpressions := variants.subBlocks
+                fallthrough_ := false
+                if functionExpressions.getLength() != 0
+                    then fallthrough_ = functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
+                if fallthrough_
+                    then
+                        if variantIndex == caseBlock.subBlocks.getLength() - 1
+                            then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
+                        functionExpressions.getLast().noSubBlocks!()
+                        functionExpressions = functionExpressions.getAllExceptLast()
+                if functionExpressions.getLength() != 0
+                    then
+                        result += "\t{\n"
+                        parse _, functionExpression <- functionExpressions
+                            result += functionExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+                        result:join(namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n",{
+                            select(fallthrough_, "\t/* fall through */\n", "\tbreak;\n"))
+                        }
+        allVariantsBlocks[0].line[0][][0].lower?()
+            result:join("\tswitch (", caseOperand.value, ") {\n")
+            allVariants := Set([UInt8])
+            parse variantIndex, variants <- allVariantsBlocks
+                tokenIndex = 0
+                for
+                    variant .= variants.next(tokenIndex)
+                    enumStr := ""
+                    if enumInt .= data.enums[variant[]]; enumInt.item?()
+                        then enumStr = enumInt[].toString()
+                        else errorNotExist(variant, "enum")
+                    if allVariants[variant[]]
+                        then errorNotExpectedToken(variant, "")
+                    allVariants += variant[]
+                    result:join("\tcase ", enumStr, ":\n")
+                    if !variants.next?(tokenIndex, ";")
+                        then
+                            variants.eol!(tokenIndex)
+                            break
+                    result += "\t/* fall through */\n"
+                variants.subBlocks!()
+                functionExpressions := variants.subBlocks
+                fallthrough_ := false
+                if functionExpressions.getLength() != 0
+                    then fallthrough_ = functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
+                if fallthrough_
+                    then
+                        if variantIndex == caseBlock.subBlocks.getLength() - 1
+                            then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
+                        functionExpressions.getLast().noSubBlocks!()
+                        functionExpressions = functionExpressions.getAllExceptLast()
+                if functionExpressions.getLength() != 0
+                    then
+                        result += "\t{\n"
+                        parse _, functionExpression <- functionExpressions
+                            result += functionExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+                        result:join(namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n",{
+                            select(fallthrough_, "\t/* fall through */\n", "\tbreak;\n"))
+                        }
+        default
+            result:join("\tswitch (", caseOperand.value, ") {\n")
+            allVariants := Set([UInt8])
+            parse variantIndex, variants <- allVariantsBlocks
+                tokenIndex = 0
+                for
+                    variant .= variants.next(tokenIndex)
+                    variantAsInt := 0
+                    mif
+                        variant[].integer?(false, false)
+                            if variant[][0] == '-'
+                                then variantAsInt = Int64.fromString(variant[])[].convertTo(UInt64)
+                                else variantAsInt = UInt64.fromString(variant[])[]
+                        variant[][0] == '\047'
+                            if variant[].getLength() != 3
+                                then errorNotExpectedToken(variant, "")
+                            variantAsInt = variant[][1].convertTo(UInt64)
+                        default
+                            tokenIndex = 0
+                            type .= variants.getOperandType(tokenIndex, compilingFunction.argumentsNames, false, true)
+                            realType .= type.toRealOperandType(compilingFunction.argumentsNames, compilingFunction.type.arguments.toOperandsTypes())
+                            if realType.empty?()
+                                then errorWrongType(type.toToken())
+                            compiledType .= realType[].compile(data, compiledData)
+                            variantAsInt = compiledType.typeNumber
+                    newVariant := ""
+                    case caseOperand.type.baseType[] of
+                        "UInt8"
+                            newVariant = variantAsInt.convertTo(UInt8).toString()
+                        "UInt16"
+                            newVariant = variantAsInt.convertTo(UInt16).toString()
+                        "UInt32"
+                            newVariant = variantAsInt.convertTo(UInt32).toString()
+                        "UInt64"
+                            newVariant = variantAsInt.toString()
+                        "Int8"
+                            newVariant = variantAsInt.convertTo(Int8).toString()
+                        "Int16"
+                            newVariant = variantAsInt.convertTo(Int16).toString()
+                        "Int32"
+                            newVariant = variantAsInt.convertTo(Int32).toString()
+                        "Int64"
+                            newVariant = variantAsInt.convertTo(Int64).toString()
+                    if allVariants[newVariant]
+                        then errorNotExpectedToken(variant, "")
+                    allVariants += newVariant
+                    result:join("\tcase ", newVariant, ":\n")
+                    if !variants.next?(tokenIndex, ";")
+                        then
+                            variants.eol!(tokenIndex)
+                            break
+                    result += "\t/* fall through */\n"
+                variants.subBlocks!()
+                functionExpressions := variants.subBlocks
+                fallthrough_ := false
+                if functionExpressions.getLength() != 0
+                    then fallthrough_ = functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
+                if fallthrough_
+                    then
+                        if variantIndex == caseBlock.subBlocks.getLength() - 1
+                            then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
+                        functionExpressions.getLast().noSubBlocks!()
+                        functionExpressions = functionExpressions.getAllExceptLast()
+                if functionExpressions.getLength() != 0
+                    then
+                        result += "\t{\n"
+                        parse _, functionExpression <- functionExpressions
+                            result += functionExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+                        result:join(namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n",{
+                            select(fallthrough_, "\t/* fall through */\n", "\tbreak;\n"))
+                        }
+    if haveDefault
+        then
+            result += "\tdefault:\n\t{\n"
+            functionExpressions := caseBlock.subBlocks.getLast().subBlocks
+            parse _, functionExpression <- functionExpressions
+                result += functionExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+            result:join(namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n\tbreak;\n")
+    result += "\t}\n"
+    breakCounter--
+    if breakCounter != 0
+        then result += "\tif (__breakCounter != 0) {__breakCounter--; break;}\n"
+    if continueCounter != 0
+        then result += "\tif (__continueCounter != 0) {break;}\n"
+
+proc compileEnslave(enslaveBlock, currentLevel, :namedOperands)
+    rules
+        final = enslaveBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+    tokenIndex := 1
+    enslaveBlock.noSubBlocks!()
+    enslaveBlock.next!(tokenIndex, "(")
+    variableName .= enslaveBlock.getVariableName(tokenIndex, false)
+    enslaveBlock.next!(tokenIndex, ")")
+    enslaveBlock.eol!(tokenIndex)
+    if oldOperands .= namedOperands[variableName[]]; oldOperands.empty?()
+        then errorNotExist(variableName, "variable")
+        else
+            mutOldOperands := oldOperands[]
+            parse variableIndex, variableOperand <- oldOperands[]
+                if variableOperand.level == currentLevel
+                    then
+                        newVariable := variableOperand
+                        newVariable:enslaved = true
+                        mutOldOperands:setItem(variableIndex, newVariable)
+                        namedOperands:add(variableName[], mutOldOperands)
+                        return
+                    else if variableOperand.level > currentLevel
+                        then break
+            errorNotExist(variableName, "variable")
+
+func compileIf(ifBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = ifBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    result = "\t{\n"
+    tmpOperands := Map([UInt8], Operand)
+    ifBlock.subBlocks!()
+    tokenIndex := 0
+    ifBlock.subBlocks[0].next!(tokenIndex, "then")
+    if ifBlock.subBlocks.getLength() == 2
+        then
+            tokenIndex = 0
+            ifBlock.subBlocks[1].next!(tokenIndex, "else")
+        else if ifBlock.subBlocks.getLength() > 2
+            then errorNotExpectedToken(ifBlock.subBlocks[2].line[0], "")
+    separatorsIndexes := [UInt64]
+    parse index, token <- ifBlock.line
+        if token[] == ";"
+            then separatorsIndexes += index
+    previousSeparatorIndex := 0
+    parse _, separatorIndex <- separatorsIndexes
+        if separatorIndex - previousSeparatorIndex == 1
+            then errorNotExpectedToken(ifBlock.line[separatorIndex], "")
+        expressionBlock .= Block{line: ifBlock.line.getSlice(previousSeparatorIndex + 1, separatorIndex)}
+        result += expressionBlock.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        previousSeparatorIndex = separatorIndex
+    tokenIndex = previousSeparatorIndex + 1
+    code_predicate .= ifBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType{baseType: Token{value: "Bool"}}, tmpOperands)
+    ifBlock.eol!(tokenIndex)
+    result += code_predicate.first
+    predicate .= code_predicate.second.toReadOnly()
+    result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), "\tif (", predicate.value, ") {\n")
+    thenBlock .= ifBlock.subBlocks[0]
+    if thenBlock.line.getLength() != 1
+        then
+            newBlock .= Block{line: thenBlock.line.getAllExceptFirst(), subBlocks: thenBlock.subBlocks}
+            result += newBlock.compile(compilingFunction, currentLevel + 2, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        else parse _, functionExpression <- thenBlock.subBlocks
+            result += functionExpression.compile(compilingFunction, currentLevel + 2, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+    result += namedOperands:deleteLevel(compilingFunction, currentLevel + 2, registersCount, waitingFunctions, data, compiledData)
+    if ifBlock.subBlocks.getLength() == 2
+        then
+            elseBlock .= ifBlock.subBlocks[1]
+            result += "\t} else {\n"
+            if elseBlock.line.getLength() != 1
+                then
+                    newBlock .= Block{line: elseBlock.line.getAllExceptFirst(), subBlocks: elseBlock.subBlocks}
+                    result += newBlock.compile(compilingFunction, currentLevel + 2, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+                else parse _, functionExpression <- elseBlock.subBlocks
+                    result += functionExpression.compile(compilingFunction, currentLevel + 2, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+            result += namedOperands:deleteLevel(compilingFunction, currentLevel + 2, registersCount, waitingFunctions, data, compiledData)
+    if ifBlock.subBlocks.getLength() == 2
+        then result += namedOperands:deleteLevel(compilingFunction, currentLevel + 2, registersCount, waitingFunctions, data, compiledData)
+    result:join("\t}\n", namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n")
+
+func compileFlag(flagBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = flagBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    result = "\t{\n"
+    flagBlock.subBlocks!()
+    tokenIndex := 0
+    flagBlock.subBlocks[0].next!(tokenIndex, "then")
+    if flagBlock.subBlocks.getLength() == 2
+        then
+            tokenIndex = 0
+            flagBlock.subBlocks[1].next!(tokenIndex, "else")
+        else if flagBlock.subBlocks.getLength() > 2
+            then errorNotExpectedToken(flagBlock.subBlocks[2].line[0], "")
+    tokenIndex = 1
+    flagName .= flagBlock.getFlagName(tokenIndex)
+    flagBlock.next!(tokenIndex, "is")
+    flagBlock.next!(tokenIndex, "set")
+    flagBlock.next!(tokenIndex, "?")
+    flagBlock.eol!(tokenIndex)
+    flagDescription .= data.flags[flagName[]]
+    if flagDescription.item?()
+        then compiledData:flags:add(flagName[], flagDescription[])
+        else errorNotExist(flagName, "flag")
+    thenBlock .= flagBlock.subBlocks[0]
+    result:join("\t#if __FLAG_", flagName[], " == 1 \n")
+    if thenBlock.line.getLength() != 1
+        then
+            newBlock .= Block{line: thenBlock.line.getAllExceptFirst(), subBlocks: thenBlock.subBlocks}
+            result += newBlock.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        else parse _, functionExpression <- thenBlock.subBlocks
+            result += functionExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+    result += namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData)
+    if flagBlock.subBlocks.getLength() == 2
+        then
+            elseBlock .= flagBlock.subBlocks[1]
+            result += "\t#else\n"
+            if elseBlock.line.getLength() != 1
+                then
+                    newBlock .= Block{line: elseBlock.line.getAllExceptFirst(), subBlocks: elseBlock.subBlocks}
+                    result += newBlock.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+                else parse _, functionExpression <- elseBlock.subBlocks
+                    result += functionExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+            result += namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData)
+    result += "\t#endif\n\t}\n"
+
+func compileHaveLink(haveLinkBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = haveLinkBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    tokenIndex := 1
+    haveLinkBlock.next!(tokenIndex, "?")
+    type .= haveLinkBlock.getOperandType(tokenIndex, compilingFunction.argumentsNames, false, true)
+    realType .= type.toRealOperandType(compilingFunction.argumentsNames, compilingFunction.type.arguments.toOperandsTypes())
+    if realType.empty?()
+        then errorWrongType(type.toToken())
+    haveLinkBlock.eol!(tokenIndex)
+    result = "\t{\n"
+    haveLinkBlock.subBlocks!()
+    tokenIndex = 0
+    haveLinkBlock.subBlocks[0].next!(tokenIndex, "then")
+    if haveLinkBlock.subBlocks.getLength() == 2
+        then
+            tokenIndex = 0
+            haveLinkBlock.subBlocks[1].next!(tokenIndex, "else")
+        else if haveLinkBlock.subBlocks.getLength() > 2
+            then errorNotExpectedToken(haveLinkBlock.subBlocks[2].line[0], "")
+    compilingBlock := Block
+    if realType[].compile(data, compiledData).haveLink
+        then compilingBlock = haveLinkBlock.subBlocks[0]
+        else if haveLinkBlock.subBlocks.getLength() == 2
+            then compilingBlock = haveLinkBlock.subBlocks[1]
+    if compilingBlock.line.getLength() != 0
+        then
+            if compilingBlock.line.getLength() != 1
+                then
+                    newBlock .= Block{line: compilingBlock.line.getAllExceptFirst(), subBlocks: compilingBlock.subBlocks}
+                    result += newBlock.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+                else parse _, functionExpression <- compilingBlock.subBlocks
+                    result += functionExpression.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+            result += namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData)
+    result += "\t}\n"
+
+func compileParse(parseBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
+    rules
+        1 = parseBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    tokenIndex := 1
+    keyName := ""
+    if !parseBlock.next?(tokenIndex, "_")
+        then keyName = parseBlock.getVariableName(tokenIndex, true)[]
+    parseBlock.next!(tokenIndex, ",")
+    itemName := ""
+    if !parseBlock.next?(tokenIndex, "_")
+        then itemName = parseBlock.getVariableName(tokenIndex, true)[]
+    parseBlock.next!(tokenIndex, "<-")
+    tmpOperands := Map([UInt8], Operand)
+    code_parsedOperand .= parseBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType, tmpOperands)
+    parseBlock.eol!(tokenIndex)
+    result = "\t{\n" + code_parsedOperand.first
+    needToFree := false
+    if needToFree = tmpOperands[code_parsedOperand.second.value].item?(); needToFree
+        then tmpOperands -= code_parsedOperand.second.value
+    parsedOperand .= code_parsedOperand.second.toReadOnly()
+    result += tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+    breakCounter++
+    continueCounter++
+    code_firstIndexOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_first"),{
+        arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}}}
+        .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
+    }
+    code_hiddenIndexName .= registersCount:createNewRegister(true, code_firstIndexOperand.second.cType, code_firstIndexOperand.second.value)
+    result:join(code_firstIndexOperand.first, code_hiddenIndexName.first)
+    hiddenIndexOperand := code_firstIndexOperand.second
+    hiddenIndexOperand:value = code_hiddenIndexName.second
+    code_nextIndexOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_next"),{
+        arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
+        .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
+    }
+    result:join({
+        "\tbool __firstTime = true;\n\tfor (;;){\n\tif (!__firstTime){\n",
+        hiddenIndexOperand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData),
+        code_nextIndexOperand.first, "\t", hiddenIndexOperand.value, " = ",
+        code_nextIndexOperand.second.value, ";\n\t} else {\t__firstTime = false;}\n")
+    }
+    code_predicate .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_haveItem?"),{
+        arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
+        .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
+    }
+    result:join(code_predicate.first,  "\tif (!", code_predicate.second.value, "){break;};\n")
+    if keyName != ""
+        then
+            code_keyOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_key"),{
+                arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
+                .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
+            }
+            keyOperand := code_keyOperand.second
+            result:join(code_keyOperand.first, "\t", keyOperand.cType, " const ", keyName, "_ = ", keyOperand.value, ";\n")
+            keyOperand:value = keyName + '_'
+            keyNamedOperandsBox .= namedOperands[keyName]
+            keyNamedOperands .= select(keyNamedOperandsBox.item?(), keyNamedOperandsBox[], [NamedOperand]) + NamedOperand{level: currentLevel + 1, operand: keyOperand}
+            namedOperands:add(keyName, keyNamedOperands)
+    if itemName != ""
+        then
+            code_itemOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_item"),{
+                arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
+                .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
+            }
+            itemOperand := code_itemOperand.second
+            result:join(code_itemOperand.first, "\t", itemOperand.cType, " const ", itemName, "_ = ", itemOperand.value, ";\n")
+            itemOperand:value = itemName + '_'
+            itemNamedOperandsBox .= namedOperands[itemName]
+            itemNamedOperands .= select(itemNamedOperandsBox.item?(), itemNamedOperandsBox[], [NamedOperand]) + NamedOperand{level: currentLevel + 1, operand: itemOperand}
+            namedOperands:add(itemName, itemNamedOperands)
+    parse _, functionExpression <- parseBlock.subBlocks
+        result += functionExpression.compile(compilingFunction, currentLevel + 2, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+    result:join({
+        namedOperands:deleteLevel(compilingFunction, currentLevel + 1, registersCount, waitingFunctions, data, compiledData),
+        "\t}\n",
+        hiddenIndexOperand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData))
+    }
+    if needToFree
+        then result += parsedOperand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+    breakCounter--
+    continueCounter--
+    if breakCounter != 0
+        then result += "\tif (__breakCounter != 0) {__breakCounter--; break;}\n"
+    if continueCounter != 0
+        then result += "\tif (__continueCounter != 0) {\n\t__continueCounter--;\n\tif (__continueCounter == 0) {\n\tcontinue;\n\t} else {break;}\n\t}\n"
+    result += "\t}\n"
+
+func insertCBlock(cBlock, compilingFunction, data, :compiledData)
+    rules
+        final = cBlock == Block & compilingFunction == CompiledFunction & data == Data & compiledData == CompiledData
+        result = [UInt8]
+    newLine := ""
+    fakeBlock := Block
+    parse _, line <- cBlock.line.getAllExceptFirst()
+        if line[].contain?("##")
+            then
+                parts .= line[].split("##")
+                newLine = parts[0]
+                for index := 1; index < parts.getLength(); index += 2
+                    fakeBlock:line = parts[index].getAllTokens(line.file, line.fileIndex, line.line, 0)
+                    fakeTokeIndex := 0
+                    type .= fakeBlock.getOperandType(fakeTokeIndex, compilingFunction.argumentsNames, false, true)
+                    realType .= type.toRealOperandType(compilingFunction.argumentsNames, compilingFunction.type.arguments.toOperandsTypes())
+                    if realType.empty?()
+                        then errorWrongType(type.toToken())
+                    compiledType .= realType[].compile(data, compiledData)
+                    newLine:join(compiledType.cType, parts[index + 1])
+            else newLine = line[]
+        result:join("\t", newLine, "\n")
+
+func compileEqExpression(expressionBlock, compilingFunction, namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = expressionBlock == Block & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
+        3 = data == Data & compiledData == CompiledData
+        final = 1 & 2 & 3
+        result = [UInt8]
+    expressionBlock.noSubBlocks!()
+    tokenIndex := 0
+    tmpOperands := Map([UInt8], Operand)
+    if expressionBlock.next?(tokenIndex, "_")
+        then
+            expressionBlock.next!(tokenIndex, "=")
+            result = expressionBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType, tmpOperands).first
+            expressionBlock.eol!(tokenIndex)
+            result += tmpOperands:freeOperands(compilingFunction,registersCount, waitingFunctions, data, compiledData)
+        else
+            isEqExpression := false
+            parse _, token <- expressionBlock.line
+                if token[] == "="
+                    then
+                        isEqExpression = true
+                        break
+            if isEqExpression
+                then
+                    code_leftOperand .= expressionBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType, tmpOperands)
+                    result = code_leftOperand.first
+                    expressionBlock.next!(tokenIndex, "=")
+                    leftOperand .= code_leftOperand.second
+                    tmpOperands -= leftOperand.value
+                    code_rightOperand .= expressionBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, leftOperand.type, tmpOperands)
+                    expressionBlock.eol!(tokenIndex)
+                    result += code_rightOperand.first
+                    rightOperand := code_rightOperand.second
+                    if tmpOperands[rightOperand.value].item?()
+                        then tmpOperands -= rightOperand.value
+                        else if !rightOperand.value.hasPrefix?("{0}")
+                            then
+                                rightOperand = rightOperand.toReadOnly()
+                                result += rightOperand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                    result:join({
+                        tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData),
+                        leftOperand.setOperand(rightOperand, compilingFunction, registersCount, waitingFunctions, data, compiledData))
+                    }
+                else
+                    result =  expressionBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, false, tokenIndex, OperandType, tmpOperands).first
+                    expressionBlock.eol!(tokenIndex)
+                    result += tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+
+func compileNewVariableExpression(newVariableBlock, currentLevel, compilingFunction, :namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
+    rules
+        1 = newVariableBlock == Block & currentLevel == UInt64 & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = [UInt8]
+    newVariableBlock.noSubBlocks!()
+    tmpOperands := Map([UInt8], Operand)
+    variableDeclaration := newVariableBlock.line[1][]
+    static .= variableDeclaration[0] == '<'
+    variableDeclaration = "" + select(static, variableDeclaration[1], variableDeclaration[0])
+    mutable .= variableDeclaration == ":"
+    tokenIndex := 0
+    variableName .= newVariableBlock.getVariableName(tokenIndex, true)
+    tokenIndex++
+    code_operand .= newVariableBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType, tmpOperands)
+    newVariableBlock.eol!(tokenIndex)
+    operand := code_operand.second
+    code := code_operand.first
+    if tmpOperands[operand.value].item?()
+        then tmpOperands -= operand.value
+        else if !operand.value.hasSuffix?("{0}")
+            then
+                operand = operand.toReadOnly()
+                code += operand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+    code += tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+    existedOperands .= namedOperands[variableName[]]
+    if existedOperands.item?()
+        then errorAlreadyExist(variableName, "variable")
+    if static
+        then
+            result:join({
+                "\tstatic ", operand.cType, " ", variableName[], "_;\n\tstatic bool ", variableName[], "__if = false;\n",
+                "\tif (!__builtin_expect(", variableName[], "__if, true)) {\n\t", variableName[], "__if = true;\n", code)
+            }
+            if operand.cType.getLast() == '*'
+                then result:join("\t", variableName[], "_ = (", operand.cType, ")(", operand.value + ");\n\t}\n")
+                else result:join("\t", variableName[], "_ = ", operand.value, ";\n\t}\n")
+            if mutable
+                then
+                    operand:value = "&".join(variableName[], "_")
+                    operand:static = true
+                    operand:mutable = true
+                else operand:value = variableName[] + '_'
+        else
+            result = code
+            if mutable
+                then
+                    if operand.cType.getLast() == '*'
+                        then result:join("\t", operand.cType, " ", variableName[], "_ = (", operand.cType, ")(", operand.value + ");\n")
+                        else result:join("\t", operand.cType, " ", variableName[], "_ = ", operand.value, ";\n")
+                    operand:value = "&".join(variableName[], "_")
+                    operand:mutable = true
+                else
+                    if variableDeclaration == "." && operand.type.function?()
+                        then result:join("\t", operand.cType, " const ", variableName[], "_ = (const ", operand.cType, ")(", operand.value, ");\n")
+                        else result:join("\t", operand.cType, " const ", variableName[], "_ = ", operand.value, ";\n")
+                    operand:value = variableName[] + '_'
+    if mutable
+        then operand:constant = false
+    namedOperands:add(variableName[], [NamedOperand]{NamedOperand{level: currentLevel, operand: operand}})
+
+func getVariableName(block, :tokenIndex, fullCheck)
+    rules
+        final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
+        result = Token
+    result = block.next(tokenIndex)
+    nameCorrect := result[][0].lower?()
+    if nameCorrect
+        then
+            parse _, char <- result[].getAllExceptFirst()
+                nameCorrect = nameCorrect && char.fromName?()
+            nameCorrect = nameCorrect && !result[].contain?("__")
+    if nameCorrect && fullCheck
+        then case result[] of
+            "if"; "case"; "flag"; "of"; "for"; "return"; "result"; "break"; "continue"; "mif"; "parse"; "true"; "false"
+                nameCorrect = false
+            default
+                nameCorrect = !result[].hasPrefix?("builtIn")
+    if !nameCorrect
+        then errorWrongName(result, "variable")
+
+func compileSimpleExpression(expressionBlock, compilingFunction, namedOperands, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tokenIndex, expectedType, :tmpOperands)
+    rules
+        1 = expressionBlock == Block & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data
+        3 = compiledData == CompiledData & haveResult == Bool & tokenIndex == UInt64 & expectedType == OperandType
+        final = 1 & 2 & 3 & tmpOperands == Map([UInt8], Operand)
+        result = Pair([UInt8], Operand)
+    expression .= expressionBlock.getFunctionExpression(compilingFunction, tokenIndex, namedOperands, data, compiledData)
+    result = expression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, haveResult, expectedType, tmpOperands)
+
+func getFunctionExpression(expressionBlock, compilingFunction, :tokenIndex, namedOperands, data, :compiledData)
+    rules
+        1 = expressionBlock == Block & compilingFunction == CompiledFunction & tokenIndex == UInt64
+        2 = namedOperands == Map([UInt8], [NamedOperand]) & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = FunctionExpression
+    previous := pif_Nothing
+    minus := Token
+    expressionBlock.notEOL!(tokenIndex)
+    for
+        if tokenIndex >= expressionBlock.line.getLength()
+            then break
+        token .= expressionBlock.next(tokenIndex)
+        case token[] of
+            "builtIn_currentFile"
+                if previous == pif_Nothing
+                    then
+                        result:expression += token.replaceValue("\042".join(token.file, "\042")).constStringToOperand(data, compiledData).toFluid()
+                        previous = pif_Operand
+                    else
+                        error := true
+                        if previous == pif_Operand
+                            then if lastItem .= result.expression.getLast(); lastItem.getInnerTypeNumber() == Operand.getTypeNumber()
+                                then if operand .= lastItem[Operand]; operand.constant && operand.type.toToken()[] == "[UInt8]"
+                                    then
+                                        error = false
+                                        firstQMark .= operand.value.look(".items = (uint8_t*)")[] + 19
+                                        lastQMark .= operand.value.lookLast('\042')[]
+                                        newOperand := operand.expressionForErrors.replaceValue(operand.value.getSlice(firstQMark, lastQMark).join(token.file, "\042")).constStringToOperand(data, compiledData)
+                                        newOperand:expressionForErrors = operand.expressionForErrors
+                                        newOperand:expressionForErrors:value += token[]
+                                        result:expression:setLast(newOperand.toFluid())
+                        if error
+                            then errorNotExpectedToken(token, "")
+            "builtIn_currentLine"
+                if previous == pif_Nothing
+                    then
+                        result:expression += token.replaceValue("\042".join((token.line + 1).toString(), "\042")).constStringToOperand(data, compiledData).toFluid()
+                        previous = pif_Operand
+                    else
+                        error := true
+                        if previous == pif_Operand
+                            then if lastItem .= result.expression.getLast(); lastItem.getInnerTypeNumber() == Operand.getTypeNumber()
+                                then if operand .= lastItem[Operand]; operand.constant && operand.type.toToken()[] == "[UInt8]"
+                                    then
+                                        error = false
+                                        firstQMark .= operand.value.look(".items = (uint8_t*)")[] + 19
+                                        lastQMark .= operand.value.lookLast('\042')[]
+                                        newOperand := operand.expressionForErrors.replaceValue(operand.value.getSlice(firstQMark, lastQMark).join((token.line + 1).toString(), "\042")).constStringToOperand(data, compiledData)
+                                        newOperand:expressionForErrors = operand.expressionForErrors
+                                        newOperand:expressionForErrors:value += token[]
+                                        result:expression:setLast(newOperand.toFluid())
+                        if error
+                            then errorNotExpectedToken(token, "")
+            "builtIn_currentRow"
+                if previous == pif_Nothing
+                    then
+                        result:expression += token.replaceValue("\042".join((token.row + 1).toString(), "\042")).constStringToOperand(data, compiledData).toFluid()
+                        previous = pif_Operand
+                    else
+                        error := true
+                        if previous == pif_Operand
+                            then if lastItem .= result.expression.getLast(); lastItem.getInnerTypeNumber() == Operand.getTypeNumber()
+                                then if operand .= lastItem[Operand]; operand.constant && operand.type.toToken()[] == "[UInt8]"
+                                    then
+                                        error = false
+                                        firstQMark .= operand.value.look(".items = (uint8_t*)")[] + 19
+                                        lastQMark .= operand.value.lookLast('\042')[]
+                                        newOperand := operand.expressionForErrors.replaceValue(operand.value.getSlice(firstQMark, lastQMark).join((token.row + 1).toString(), "\042")).constStringToOperand(data, compiledData)
+                                        newOperand:expressionForErrors = operand.expressionForErrors
+                                        newOperand:expressionForErrors:value += token[]
+                                        result:expression:setLast(newOperand.toFluid())
+                        if error
+                            then errorNotExpectedToken(token, "")
+            "builtIn_random"
+                if previous == pif_Nothing
+                    then
+                        result:expression += token.replaceValue(UInt64.maxValue().random().toString()).constIntToOperand(data, compiledData).toFluid()
+                        previous = pif_Operand
+                    else errorNotExpectedToken(token, "")
+            "("
+                if previous == pif_Nothing
+                    then
+                        result:expression += expressionBlock.getFunctionExpression(compilingFunction, tokenIndex, namedOperands, data, compiledData).toFluid()
+                        expressionBlock.next!(tokenIndex, ")")
+                        previous = pif_Operand
+                    else errorNotExpectedToken(token, "")
+            ","; "]"; ")"; "}"; "="
+                if previous == pif_Operand
+                    then
+                        tokenIndex--
+                        return
+                errorNotExpectedToken(token, "")
+            ":"
+                if previous == pif_Operand
+                    then
+                        result:expression += MutableAccess.toFluid()
+                        previous = pif_Access
+                    else errorNotExpectedToken(token, "")
+            "."
+                if previous == pif_Operand
+                    then
+                        result:expression += ReadOnlyAccess.toFluid()
+                        previous = pif_Access
+                    else errorNotExpectedToken(token, "")
+            "#"
+                if previous == pif_Nothing
+                    then
+                        result:expression += expressionBlock.getOperandCreator(tokenIndex, compilingFunction, namedOperands, data, compiledData).toFluid()
+                        previous = pif_Operand
+                    else errorNotExpectedToken(token, "")
+            "!"
+                if previous == pif_Nothing
+                    then result:expression += Operator{operator: token}.toFluid()
+                    else errorNotExpectedToken(token, "")
+            "["
+                mif
+                    previous == pif_Operand
+                        function := FunctionInExpression{name: token.replaceValue("getItem"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{PreviousOperand.toFluid()}}}}
+                        if !expressionBlock.next?(tokenIndex, "]")
+                            then for
+                                expression .= expressionBlock.getFunctionExpression(compilingFunction, tokenIndex, namedOperands, data, compiledData)
+                                function:arguments += expression
+                                if !expressionBlock.next?(tokenIndex, ",")
+                                    then
+                                        expressionBlock.next!(tokenIndex, "]")
+                                        break
+                        result:expression += ReadOnlyAccess.toFluid()
+                        result:expression += function.toFluid()
+                    previous == pif_Nothing
+                        tokenIndex--
+                        result:expression += expressionBlock.getOperandCreator(tokenIndex, compilingFunction, namedOperands, data, compiledData).toFluid()
+                        previous = pif_Operand
+                    default
+                        errorNotExpectedToken(token, "")
+            "&&"
+                if previous == pif_Operand
+                    then
+                        result:expression += LazyAnd.toFluid()
+                        previous = pif_Nothing
+                    else errorNotExpectedToken(token, "")
+            "||"
+                if previous == pif_Operand
+                    then
+                        result:expression += LazyOr.toFluid()
+                        previous = pif_Nothing
+                    else errorNotExpectedToken(token, "")
+            "*"; "/"; "%"; "+"; "<<"; "<"; "<="; ">>"; ">"; ">="; "=="; "!="; "&"; "^"; "|"; "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; ">>="; "<<="
+                if previous == pif_Operand
+                    then
+                        result:expression += Operator{operator: token}.toFluid()
+                        previous = pif_Nothing
+                    else errorNotExpectedToken(token, "")
+            "++"
+                if previous == pif_Operand
+                    then
+                        result:expression += MutableAccess.toFluid()
+                        result:expression += FunctionInExpression{name: token.replaceValue("inc"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{PreviousOperand.toFluid()}}}}.toFluid()
+                        return
+                errorNotExpectedToken(token, "")
+            "--"
+                if previous == pif_Operand
+                    then
+                        result:expression += MutableAccess.toFluid()
+                        result:expression += FunctionInExpression{name: token.replaceValue("dec"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{PreviousOperand.toFluid()}}}}.toFluid()
+                        return
+                errorNotExpectedToken(token, "")
+            "-"
+                if previous == pif_Operand
+                    then
+                        result:expression += Operator{operator: token}.toFluid()
+                        previous = pif_Nothing
+                    else
+                        minus = token
+                        previous = pif_Minus
+            "@"
+                if expressionBlock.next?(tokenIndex, "func", "proc")
+                    then
+                        functionOperand := FunctionOperand{haveResult: expressionBlock.line[tokenIndex - 1][] == "func"}
+                        expressionBlock.next!(tokenIndex, "(")
+                        functionOperand:functionName = expressionBlock.getFunctionName(tokenIndex, false)
+                        expressionBlock.next!(tokenIndex, ")")
+                        expressionBlock.next!(tokenIndex, "(")
+                        if !expressionBlock.next?(tokenIndex, ")")
+                            then for
+                                mutable .= expressionBlock.next?(tokenIndex, ":")
+                                type .= expressionBlock.getOperandType(tokenIndex, compilingFunction.argumentsNames, false, true)
+                                realType .= type.toRealOperandType(compilingFunction.argumentsNames, compilingFunction.type.arguments.toOperandsTypes())
+                                if realType.empty?()
+                                    then errorWrongType(type.toToken())
+                                functionOperand:arguments += FunctionTypeArgument{mutable: mutable, type: realType[]}
+                                if !expressionBlock.next?(tokenIndex, ",")
+                                    then
+                                        expressionBlock.next!(tokenIndex, ")")
+                                        break
+                        previous = pif_Operand
+                        result:expression += functionOperand.toFluid()
+                    else
+                        functionOperandCall := FunctionOperandCall
+                        variableName .= expressionBlock.getVariableName(tokenIndex, false)
+                        if operands .= namedOperands[variableName[]]; operands.item?()
+                            then
+                                functionOperandCall:operand = operands[].getLast().operand
+                                functionOperandCall:operand:expressionForErrors = variableName
+                                if !functionOperandCall.operand.type.function?()
+                                    then errorWrongType(variableName.replaceValue(functionOperandCall.operand.type.toToken()[]))
+                            else errorNotExist(variableName, "variable")
+                        expressionBlock.next!(tokenIndex, "(")
+                        if !expressionBlock.next?(tokenIndex, ")")
+                            then for
+                                expression .= expressionBlock.getFunctionExpression(compilingFunction, tokenIndex, namedOperands, data, compiledData)
+                                functionOperandCall:arguments += expression
+                                if !expressionBlock.next?(tokenIndex, ",")
+                                    then
+                                        expressionBlock.next!(tokenIndex, ")")
+                                        break
+                        previous = pif_Operand
+                        result:expression += functionOperandCall.toFluid()
+            "true"; "false"; "select"
+                if previous == pif_Nothing
+                    then
+                        if token[] == "select"
+                            then
+                                select_ := Select{coordinates: token, expressions: [FunctionExpression].init(3)}
+                                expressionBlock.next!(tokenIndex, "(")
+                                select_:expressions:setItem(0, expressionBlock.getFunctionExpression(compilingFunction, tokenIndex, namedOperands, data, compiledData))
+                                expressionBlock.next!(tokenIndex, ",")
+                                select_:expressions:setItem(1, expressionBlock.getFunctionExpression(compilingFunction, tokenIndex, namedOperands, data, compiledData))
+                                expressionBlock.next!(tokenIndex, ",")
+                                select_:expressions:setItem(2, expressionBlock.getFunctionExpression(compilingFunction, tokenIndex, namedOperands, data, compiledData))
+                                expressionBlock.next!(tokenIndex, ")")
+                                result:expression += select_.toFluid()
+                                previous = pif_Operand
+                            else
+                                result:expression += token.constBoolToOperand(data, compiledData).toFluid()
+                                previous = pif_Operand
+                        break
+                    else if previous != pif_Access
+                        then errorNotExpectedToken(token, "")
+                fallthrough
+            default
+                case token[][0] of
+                    '0'; '1'; '2'; '3'; '4'; '5'; '6'; '7'; '8'; '9'
+                        token.integer!(false, true)
+                        mutToken := token
+                        if previous == pif_Nothing || previous == pif_Minus
+                            then
+                                if previous == pif_Minus
+                                    then mutToken = minus.replaceValue("-" + mutToken[])
+                                if expressionBlock.next?(tokenIndex, ".")
+                                    then
+                                        dotIndex .= tokenIndex - 1
+                                        maybeFunction .= expressionBlock.next(tokenIndex)[]
+                                        _ = expressionBlock.next?(tokenIndex, "?", "!")
+                                        if maybeFunction[0].lower?() && expressionBlock.next?(tokenIndex, "(")
+                                            then
+                                                tokenIndex = dotIndex
+                                                result:expression += mutToken.constIntToOperand(data, compiledData).toFluid()
+                                            else
+                                                mutToken:value:join(".", maybeFunction)
+                                                mutToken.double!()
+                                                result:expression += mutToken.constDoubleToOperand(data, compiledData).toFluid()
+                                    else result:expression += mutToken.constIntToOperand(data, compiledData).toFluid()
+                            else errorNotExpectedToken(mutToken, "")
+                    34
+                        if previous == pif_Nothing
+                            then result:expression += token.constStringToOperand(data, compiledData).toFluid()
+                            else
+                                error := true
+                                if previous == pif_Operand
+                                    then if lastItem .= result.expression.getLast(); lastItem.getInnerTypeNumber() == Operand.getTypeNumber()
+                                        then if operand .= lastItem[Operand]; operand.constant && operand.type.toToken()[] == "[UInt8]"
+                                            then
+                                                error = false
+                                                firstQMark .= operand.value.look(".items = (uint8_t*)")[] + 19
+                                                lastQMark .= operand.value.lookLast('\042')[]
+                                                newOperand := operand.expressionForErrors.replaceValue(operand.value.getSlice(firstQMark, lastQMark) + token[].getAllExceptFirst()).constStringToOperand(data, compiledData)
+                                                newOperand:expressionForErrors = operand.expressionForErrors
+                                                newOperand:expressionForErrors:value += token[]
+                                                result:expression:setLast(newOperand.toFluid())
+                                if error
+                                    then errorNotExpectedToken(token, "")
+                    39
+                        if previous == pif_Nothing
+                            then result:expression += token.constCharToOperand(data, compiledData).toFluid()
+                            else
+                                error := true
+                                if previous == pif_Operand
+                                    then if lastItem .= result.expression.getLast(); lastItem.getInnerTypeNumber() == Operand.getTypeNumber()
+                                        then if operand .= lastItem[Operand]; operand.constant && operand.type.toToken()[] == "[UInt8]"
+                                            then
+                                                error = false
+                                                firstQMark .= operand.value.look(".items = (uint8_t*)")[] + 19
+                                                lastQMark .= operand.value.lookLast('\042')[]
+                                                newOperand := operand.expressionForErrors.replaceValue(operand.value.getSlice(firstQMark, lastQMark).join(token[].getAllExceptLast().getAllExceptFirst(), "\042")).constStringToOperand(data, compiledData)
+                                                newOperand:expressionForErrors = operand.expressionForErrors
+                                                newOperand:expressionForErrors:value += token[]
+                                                result:expression:setLast(newOperand.toFluid())
+                                if error
+                                    then errorNotExpectedToken(token, "")
+                    'Q'; 'W'; 'E'; 'R'; 'T'; 'Y'; 'U'; 'I'; 'O'; 'P'; 'A'; 'S'; 'D'; 'F'; 'G'; 'H'; 'J'; 'K'; 'L'; 'Z'; 'X'; 'C'; 'V'; 'B'; 'N'; 'M'
+                        if previous == pif_Nothing
+                            then
+                                tokenIndex--
+                                result:expression += expressionBlock.getOperandCreator(tokenIndex, compilingFunction, namedOperands, data, compiledData).toFluid()
+                            else errorNotExpectedToken(token, "")
+                    default
+                        if previous == pif_Nothing || previous == pif_Access
+                            then
+                                nameIndex .= tokenIndex - 1
+                                _ = expressionBlock.next?(tokenIndex, "?", "!")
+                                isFunction .= expressionBlock.next?(tokenIndex, "(")
+                                tokenIndex = nameIndex
+                                mif
+                                    isFunction
+                                        functionName .= expressionBlock.getFunctionName(tokenIndex, false)
+                                        expressionBlock.next!(tokenIndex, "(")
+                                        if previous == pif_Nothing && functionName[].hasPrefix?("builtIn")
+                                            then
+                                                operand := Operand
+                                                variableName .= expressionBlock.getVariableName(tokenIndex, false)
+                                                if operands .= namedOperands[variableName[]]; operands.item?()
+                                                    then
+                                                        operand = operands[].getLast().operand
+                                                        operand:expressionForErrors = variableName
+                                                    else errorNotExist(variableName, "variable")
+                                                expressionBlock.next!(tokenIndex, ")")
+                                                case functionName[] of
+                                                    "builtInClone"
+                                                        result:expression += BuiltInClone{operand: operand}.toFluid()
+                                                    "builtInFree"
+                                                        result:expression += BuiltInFree{operand: operand}.toFluid()
+                                                    "builtInUse"
+                                                        result:expression += BuiltInUse{operand: operand}.toFluid()
+                                                    "builtInTypeNumber"
+                                                        result:expression += BuiltInTypeNumber{operand: operand}.toFluid()
+                                                    default
+                                                        errorNotExpectedToken(functionName, "")
+                                            else
+                                                function := FunctionInExpression{name: functionName}
+                                                if previous == pif_Access
+                                                    then function:arguments += FunctionExpression{expression: [Fluid]{PreviousOperand.toFluid()}}
+                                                if !expressionBlock.next?(tokenIndex, ")")
+                                                    then for
+                                                        expression .= expressionBlock.getFunctionExpression(compilingFunction, tokenIndex, namedOperands, data, compiledData)
+                                                        function:arguments += expression
+                                                        if !expressionBlock.next?(tokenIndex, ",")
+                                                            then
+                                                                expressionBlock.next!(tokenIndex, ")")
+                                                                break
+                                                result:expression += function.toFluid()
+                                    previous == pif_Access
+                                        _ = expressionBlock.getTypeMemberName(tokenIndex)
+                                        result:expression += MemberInExpression{token: token}.toFluid()
+                                    default
+                                        tokenIndex++
+                                        if operands .= namedOperands[token[]]; operands.item?()
+                                            then
+                                                operand := operands[].getLast().operand
+                                                operand:expressionForErrors = token
+                                                result:expression += operand.toFluid()
+                                            else if enumInt .= data.enums[token[]]; enumInt.item?()
+                                                then
+                                                    enumStr .= enumInt[].toString()
+                                                    result:expression += token.replaceValue(enumStr).constIntToOperand(data, compiledData).toFluid()
+                                                else errorNotExpectedToken(token, "variable")
+                            else errorNotExpectedToken(token, "")
+                previous = pif_Operand
+    if previous == pif_Nothing || previous == pif_Access || previous == pif_Minus
+        then
+            tokenIndex--
+            errorNotExpectedToken(expressionBlock.line[tokenIndex], "")
+
+func getOperandCreator(expressionBlock, :tokenIndex, compilingFunction, namedOperands, data, :compiledData)
+    rules
+        1 = expressionBlock == Block & tokenIndex == UInt64 & compilingFunction == CompiledFunction
+        2 = namedOperands == Map([UInt8], [NamedOperand]) & data == Data & compiledData == CompiledData
+        final = 1 & 2
+        result = OperandCreator
+    result:type = expressionBlock.getOperandType(tokenIndex, compilingFunction.argumentsNames, false, true)
+    realType .= result.type.toRealOperandType(compilingFunction.argumentsNames, compilingFunction.type.arguments.toOperandsTypes())
+    if realType.empty?()
+        then errorWrongType(result.type.toToken())
+    result:type = realType[]
+    compiledType .= result.type.compile(data, compiledData)
+    if expressionBlock.next?(tokenIndex, "{")
+        then
+            isSlice .= realType[].baseType[] == "Slice"
+            for
+                if !isSlice
+                    then
+                        argumentName .= expressionBlock.getTypeMemberName(tokenIndex)
+                        if compiledType.members[argumentName[]].empty?()
+                            then errorNotExist(argumentName, "type member")
+                        expressionBlock.next!(tokenIndex, ":")
+                        result:membersNames += argumentName[]
+                result:membersValues += expressionBlock.getFunctionExpression(compilingFunction, tokenIndex, namedOperands, data, compiledData)
+                if !expressionBlock.next?(tokenIndex, ",")
+                    then
+                        expressionBlock.next!(tokenIndex, "}")
+                        break
+
+func toCSwitch(suffixes, prefix, items, allVariants)
+    rules
+        final = suffixes == [[UInt8]] & prefix == [UInt8] & items == [UInt8] & allVariants == Map([UInt8], UInt64)
+        result = [UInt8]
+    result = "\tswitch (".join(items, "[", prefix.getLength().toString(), "]) {\n")
+    if suffixes[0].getLength() == 1
+        then parse _, suffix <- suffixes
+            result:join("\tcase ", suffix[0].toString(), ":\n\t{\n\tvariant__number = ", allVariants[prefix + suffix][].toString(), ";\n\t}\n\tbreak;\n")
+        else
+            newSuffixes := [[[UInt8]]].init(256)
+            parse _, suffix <- suffixes
+                suffixesWithFirstChar := newSuffixes[suffix[0].convertTo(UInt8)]
+                suffixesWithFirstChar += suffix.getAllExceptFirst()
+                newSuffixes:setItem(suffix[0].convertTo(UInt8), suffixesWithFirstChar)
+            parse head, tails <- newSuffixes
+                if tails.getLength() != 0
+                    then result:join("\tcase ", head.toString(), ":\n\t{\n", tails.toCSwitch(prefix + head.convertTo(UInt8), items, allVariants), "\t}\n\tbreak;\n")
+    result += "\t}\n"
+
+func getFlagName(block, :tokenIndex)
+    rules
+        final = block == Block & tokenIndex == UInt64
+        result = Token
+    result = block.next(tokenIndex)
+    nameCorrect := result[][0].lower?()
+    if nameCorrect
+        then
+            parse _, char <- result[].getAllExceptFirst()
+                nameCorrect = nameCorrect && (char.letter?() || char.digit?() || char == '_')
+            nameCorrect = nameCorrect && !result[].contain?("__")
+    if nameCorrect
+        then nameCorrect = !result[].hasPrefix?("builtIn")
+    if !nameCorrect
+        then errorWrongName(result, "flag")
