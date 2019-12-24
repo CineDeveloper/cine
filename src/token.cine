@@ -67,7 +67,7 @@ func integer?(integer, allowNegative, allowNotDecimal)
         then if allowNotDecimal && (absNumber.hasPrefix?("0x") || absNumber.hasPrefix?("0b"))
             then if result = absNumber.getLength() > 2; result
                 then parse _, char <- absNumber.getAllExceptFirstN(2)
-                    if result = char.digit?() || char >= 'a' && char <= 'f' || char >= 'A' && char <= 'F'; !result
+                    if result = char.digit?() || char.inRange?('a', 'f') || char.inRange?('A', 'F'); !result
                         then break
             else parse _, char <- absNumber
                 if result = char.digit?(); !result
