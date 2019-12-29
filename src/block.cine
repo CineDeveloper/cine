@@ -1591,8 +1591,8 @@ func getFunctionExpression(expressionBlock, compilingFunction, :tokenIndex, name
                                                 result:expression += mutToken.constIntToOperand(data, compiledData).toFluid()
                                             else
                                                 mutToken:value:join(".", maybeFunction)
-                                                mutToken.double!()
-                                                result:expression += mutToken.constDoubleToOperand(data, compiledData).toFluid()
+                                                mutToken.float!()
+                                                result:expression += mutToken.constFloatToOperand(data, compiledData).toFluid()
                                     else result:expression += mutToken.constIntToOperand(data, compiledData).toFluid()
                             else errorNotExpectedToken(mutToken, "")
                     34

@@ -36,16 +36,16 @@ func constBoolToOperand(bool, data, :compiledData)
     result:cType = boolType.cType
     result:constant = true
 
-func constDoubleToOperand(double, data, :compiledData)
+func constFloatToOperand(float, data, :compiledData)
     rules
-        final = double == Token & data == Data & compiledData == CompiledData
+        final = float == Token & data == Data & compiledData == CompiledData
         result = Operand
-    result:type = OperandType{baseType: Token{value: "Double"}}
-    doubleType .= result.type.compile(data, compiledData)
-    result:value = double[]
-    result:expressionForErrors = double
-    result:typeNumber = doubleType.typeNumber
-    result:cType = doubleType.cType
+    result:type = OperandType{baseType: Token{value: "Float64"}}
+    floatType .= result.type.compile(data, compiledData)
+    result:value = float[]
+    result:expressionForErrors = float
+    result:typeNumber = floatType.typeNumber
+    result:cType = floatType.cType
     result:constant = true
 
 func constCharToOperand(char, data, :compiledData)

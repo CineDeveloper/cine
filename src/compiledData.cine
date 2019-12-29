@@ -9,7 +9,7 @@ type CompiledData
 proc writeToFile(compiledData, outputFileName, flagsFileName)
     rules
         final = compiledData == CompiledData & outputFileName == [UInt8] & flagsFileName == [UInt8]
-    outputFile := ""
+    outputFile := "#if __AVX2__ == 1\n#define __SIMDVectorSize__ 32\n#else\n#define __SIMDVectorSize__ 16\n#endif\n"
     bltInCLibs .= [[UInt8]]{"#include <stdlib.h>", "#include <stdio.h>", "#include <stddef.h>", "#include <inttypes.h>", "#include <time.h>", "#include <stdbool.h>"}
     parse _, cLib <- bltInCLibs
         if !compiledData.cLibs.contain?(cLib)
@@ -47,7 +47,10 @@ proc writeToFile(compiledData, outputFileName, flagsFileName)
     outputFile:join({
         "\n",
         compiledData.cFunctionSignatures,
-        "\nint main(int argc, char** argv) {\n\tsrand(time(NULL) + ",
+        "\nint main(int argc, char** argv) {\n"
+        "\tif (sizeof(float) != 4 || sizeof(double) != 8) {\n"
+        "\t\tprintf(\042Only platforms in which the float type has a size of 32 bits and the double type has a size of 64 bits are supported.\\n\042);\n"
+        "\t}\n\tsrand(time(NULL) + ",
         UInt64.maxValue().random().toString(),
         "ull);\n\t__staticRandomNumber__ = rand();\n\t__argc = argc;\n\t__argv = argv;\n\t",
         compiledData.mainFunctionCName,

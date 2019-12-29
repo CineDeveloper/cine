@@ -73,7 +73,7 @@ func integer?(integer, allowNegative, allowNotDecimal)
                 if result = char.digit?(); !result
                     then break
 
-proc double!(arg)
+proc float!(arg)
     rules
         final = arg == Token
     mutValue := arg[]
@@ -88,4 +88,4 @@ proc double!(arg)
                     then break all
         else error = true
     if error
-        then errorIncorrectDouble(arg)
+        then errorIncorrectFloat(arg)

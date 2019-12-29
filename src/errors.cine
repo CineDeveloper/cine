@@ -135,7 +135,7 @@ proc errorNotResultType(name)
     print(name.coordinatesToString(), "The function \042", name[], "\042 does not define the type of result.\n")
     exit()
 
-proc errorIncorrectDouble(arg)
+proc errorIncorrectFloat(arg)
     rules
         final = arg == Token
     print(arg.coordinatesToString(), "\042", arg[], "\042 is an incorrect floating point number.\n")

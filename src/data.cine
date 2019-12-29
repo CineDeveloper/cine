@@ -38,8 +38,8 @@ proc createBuiltIn(:data)
         "type Int32 C(4, \042\042, \042int32_t\042)",
         "type Int64 C(8, \042\042, \042int64_t\042)",
         "type Bool C(1, \042\042, \042bool\042)",
-        "type Float C(5, \042\042, \042float\042)",
-        "type Double C(9, \042\042, \042double\042)",
+        "type Float32 C(5, \042\042, \042float\042)",
+        "type Float64 C(9, \042\042, \042double\042)",
         "type Slice(itemsType) C(8, link, \042struct ^^ {uint64_t length; uint64_t capacity; uint64_t initCapacity; ##itemsType##* array; ##itemsType##* items; uint64_t* useCounter; bool isString;}\042, \042struct ^^\042)"}
     }
     lineIndex := 0
