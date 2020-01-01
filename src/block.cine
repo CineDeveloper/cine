@@ -370,7 +370,7 @@ func replaceCoordinates(block, tokenWithCoordinates)
 func compile(functionExpression, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
     rules
         1 = functionExpression == Block & compilingFunction == CompiledFunction & currentLevel == UInt64
-        2 = namedOperands == Map([UInt8], [NamedOperand]) & registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64
+        2 = namedOperands == Map([UInt8], NamedOperand) & registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64
         3 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
         result = [UInt8]
@@ -495,7 +495,7 @@ proc notEOL!(block, tokenIndex)
 
 func compileReturn(returnBlock, compilingFunction, namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = returnBlock == Block & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        1 = returnBlock == Block & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
@@ -517,14 +517,14 @@ func compileReturn(returnBlock, compilingFunction, namedOperands, :registersCoun
                     then
                         operand = operand.toReadOnly()
                         result += operand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
-            result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), resultOperand[0].operand.setOperand(operand, compilingFunction, registersCount, waitingFunctions, data, compiledData))
+            result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), resultOperand.operand.setOperand(operand, compilingFunction, registersCount, waitingFunctions, data, compiledData))
     result:join(namedOperands.freeOperands(compilingFunction, 1, registersCount, waitingFunctions, data, compiledData),{
         select(compilingFunction.type.result.getLength() == 0, "\treturn;\n", "\treturn result_;\n"))
     }
 
 func compileFor(forBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
     rules
-        1 = forBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        1 = forBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -585,7 +585,7 @@ func compileFor(forBlock, compilingFunction, currentLevel, :namedOperands, :regi
 
 func compileBreak(breakBlock, currentLevel, compilingFunction, namedOperands, :registersCount, breakCounter, :waitingFunctions, data, :compiledData)
     rules
-        1 = breakBlock == Block & currentLevel == UInt64 & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        1 = breakBlock == Block & currentLevel == UInt64 & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & breakCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -613,7 +613,7 @@ func compileBreak(breakBlock, currentLevel, compilingFunction, namedOperands, :r
 
 func compileContinue(continueBlock, currentLevel, compilingFunction, namedOperands, :registersCount, continueCounter, :waitingFunctions, data, :compiledData)
     rules
-        1 = continueBlock == Block & currentLevel == UInt64 & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        1 = continueBlock == Block & currentLevel == UInt64 & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -641,7 +641,7 @@ func compileContinue(continueBlock, currentLevel, compilingFunction, namedOperan
 
 func compileMif(mifBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
     rules
-        1 = mifBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        1 = mifBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -707,7 +707,7 @@ func compileMif(mifBlock, compilingFunction, currentLevel, :namedOperands, :regi
 
 func compileCase(caseBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
     rules
-        1 = caseBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        1 = caseBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -906,32 +906,27 @@ func compileCase(caseBlock, compilingFunction, currentLevel, :namedOperands, :re
 
 proc compileEnslave(enslaveBlock, currentLevel, :namedOperands)
     rules
-        final = enslaveBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        final = enslaveBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
     tokenIndex := 1
     enslaveBlock.noSubBlocks!()
     enslaveBlock.next!(tokenIndex, "(")
     variableName .= enslaveBlock.getVariableName(tokenIndex, false)
     enslaveBlock.next!(tokenIndex, ")")
     enslaveBlock.eol!(tokenIndex)
-    if oldOperands .= namedOperands[variableName[]]; oldOperands.empty?()
+    if operandBox .= namedOperands[variableName[]]; operandBox.empty?()
         then errorNotExist(variableName, "variable")
         else
-            mutOldOperands := oldOperands[]
-            parse variableIndex, variableOperand <- oldOperands[]
-                if variableOperand.level == currentLevel
-                    then
-                        newVariable := variableOperand
-                        newVariable:enslaved = true
-                        mutOldOperands:setItem(variableIndex, newVariable)
-                        namedOperands:add(variableName[], mutOldOperands)
-                        return
-                    else if variableOperand.level > currentLevel
-                        then break
+            operand := operandBox[]
+            if operand.level == currentLevel
+                then
+                    operand:enslaved = true
+                    namedOperands:add(variableName[], operand)
+                    return
             errorNotExist(variableName, "variable")
 
 func compileIf(ifBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
     rules
-        1 = ifBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        1 = ifBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -989,7 +984,7 @@ func compileIf(ifBlock, compilingFunction, currentLevel, :namedOperands, :regist
 
 func compileFlag(flagBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
     rules
-        1 = flagBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        1 = flagBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -1038,7 +1033,7 @@ func compileFlag(flagBlock, compilingFunction, currentLevel, :namedOperands, :re
 
 func compileHaveLink(haveLinkBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
     rules
-        1 = haveLinkBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        1 = haveLinkBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -1078,19 +1073,19 @@ func compileHaveLink(haveLinkBlock, compilingFunction, currentLevel, :namedOpera
 
 func compileParse(parseBlock, compilingFunction, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
     rules
-        1 = parseBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], [NamedOperand])
+        1 = parseBlock == Block & compilingFunction == CompiledFunction & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
         result = [UInt8]
     tokenIndex := 1
-    keyName := ""
+    keyName := Token
     if !parseBlock.next?(tokenIndex, "_")
-        then keyName = parseBlock.getVariableName(tokenIndex, true)[]
+        then keyName = parseBlock.getVariableName(tokenIndex, true)
     parseBlock.next!(tokenIndex, ",")
-    itemName := ""
+    itemName := Token
     if !parseBlock.next?(tokenIndex, "_")
-        then itemName = parseBlock.getVariableName(tokenIndex, true)[]
+        then itemName = parseBlock.getVariableName(tokenIndex, true)
     parseBlock.next!(tokenIndex, "<-")
     tmpOperands := Map([UInt8], Operand)
     code_parsedOperand .= parseBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType, tmpOperands)
@@ -1126,30 +1121,32 @@ func compileParse(parseBlock, compilingFunction, currentLevel, :namedOperands, :
         .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
     }
     result:join(code_predicate.first,  "\tif (!", code_predicate.second.value, "){break;};\n")
-    if keyName != ""
+    if keyName[] != ""
         then
             code_keyOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_key"),{
                 arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
                 .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
             }
             keyOperand := code_keyOperand.second
-            result:join(code_keyOperand.first, "\t", keyOperand.cType, " const ", keyName, "_ = ", keyOperand.value, ";\n")
-            keyOperand:value = keyName + '_'
-            keyNamedOperandsBox .= namedOperands[keyName]
-            keyNamedOperands .= select(keyNamedOperandsBox.item?(), keyNamedOperandsBox[], [NamedOperand]) + NamedOperand{level: currentLevel + 1, operand: keyOperand}
-            namedOperands:add(keyName, keyNamedOperands)
-    if itemName != ""
+            result:join(code_keyOperand.first, "\t", keyOperand.cType, " const ", keyName[], "_ = ", keyOperand.value, ";\n")
+            keyOperand:value = keyName[] + '_'
+            keyNamedOperandBox .= namedOperands[keyName[]]
+            if keyNamedOperandBox.empty?()
+                then namedOperands:add(keyName[], NamedOperand{level: currentLevel + 1, operand: keyOperand})
+                else errorAlreadyExist(keyName, "variable")
+    if itemName[] != ""
         then
             code_itemOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_item"),{
                 arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
                 .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
             }
             itemOperand := code_itemOperand.second
-            result:join(code_itemOperand.first, "\t", itemOperand.cType, " const ", itemName, "_ = ", itemOperand.value, ";\n")
-            itemOperand:value = itemName + '_'
-            itemNamedOperandsBox .= namedOperands[itemName]
-            itemNamedOperands .= select(itemNamedOperandsBox.item?(), itemNamedOperandsBox[], [NamedOperand]) + NamedOperand{level: currentLevel + 1, operand: itemOperand}
-            namedOperands:add(itemName, itemNamedOperands)
+            result:join(code_itemOperand.first, "\t", itemOperand.cType, " const ", itemName[], "_ = ", itemOperand.value, ";\n")
+            itemOperand:value = itemName[] + '_'
+            itemNamedOperandBox .= namedOperands[itemName[]]
+            if itemNamedOperandBox.empty?()
+                then namedOperands:add(itemName[], NamedOperand{level: currentLevel + 1, operand: itemOperand})
+                else errorAlreadyExist(itemName, "variable")
     parse _, functionExpression <- parseBlock.subBlocks
         result += functionExpression.compile(compilingFunction, currentLevel + 2, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
     result:join({
@@ -1192,7 +1189,7 @@ func insertCBlock(cBlock, compilingFunction, data, :compiledData)
 
 func compileEqExpression(expressionBlock, compilingFunction, namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = expressionBlock == Block & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        1 = expressionBlock == Block & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -1241,7 +1238,7 @@ func compileEqExpression(expressionBlock, compilingFunction, namedOperands, :reg
 
 func compileNewVariableExpression(newVariableBlock, currentLevel, compilingFunction, :namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = newVariableBlock == Block & currentLevel == UInt64 & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        1 = newVariableBlock == Block & currentLevel == UInt64 & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
@@ -1265,8 +1262,7 @@ func compileNewVariableExpression(newVariableBlock, currentLevel, compilingFunct
                 operand = operand.toReadOnly()
                 code += operand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
     code += tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData)
-    existedOperands .= namedOperands[variableName[]]
-    if existedOperands.item?()
+    if namedOperands[variableName[]].item?()
         then errorAlreadyExist(variableName, "variable")
     if static
         then
@@ -1299,7 +1295,7 @@ func compileNewVariableExpression(newVariableBlock, currentLevel, compilingFunct
                     operand:value = variableName[] + '_'
     if mutable
         then operand:constant = false
-    namedOperands:add(variableName[], [NamedOperand]{NamedOperand{level: currentLevel, operand: operand}})
+    namedOperands:add(variableName[], NamedOperand{level: currentLevel, operand: operand})
 
 func getVariableName(block, :tokenIndex, fullCheck)
     rules
@@ -1323,7 +1319,7 @@ func getVariableName(block, :tokenIndex, fullCheck)
 
 func compileSimpleExpression(expressionBlock, compilingFunction, namedOperands, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tokenIndex, expectedType, :tmpOperands)
     rules
-        1 = expressionBlock == Block & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], [NamedOperand])
+        1 = expressionBlock == Block & compilingFunction == CompiledFunction & namedOperands == Map([UInt8], NamedOperand)
         2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data
         3 = compiledData == CompiledData & haveResult == Bool & tokenIndex == UInt64 & expectedType == OperandType
         final = 1 & 2 & 3 & tmpOperands == Map([UInt8], Operand)
@@ -1334,7 +1330,7 @@ func compileSimpleExpression(expressionBlock, compilingFunction, namedOperands, 
 func getFunctionExpression(expressionBlock, compilingFunction, :tokenIndex, namedOperands, data, :compiledData)
     rules
         1 = expressionBlock == Block & compilingFunction == CompiledFunction & tokenIndex == UInt64
-        2 = namedOperands == Map([UInt8], [NamedOperand]) & data == Data & compiledData == CompiledData
+        2 = namedOperands == Map([UInt8], NamedOperand) & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = FunctionExpression
     previous := pif_Nothing
@@ -1531,9 +1527,9 @@ func getFunctionExpression(expressionBlock, compilingFunction, :tokenIndex, name
                     else
                         functionOperandCall := FunctionOperandCall
                         variableName .= expressionBlock.getVariableName(tokenIndex, false)
-                        if operands .= namedOperands[variableName[]]; operands.item?()
+                        if namedOperand .= namedOperands[variableName[]]; namedOperand.item?()
                             then
-                                functionOperandCall:operand = operands[].getLast().operand
+                                functionOperandCall:operand = namedOperand[].operand
                                 functionOperandCall:operand:expressionForErrors = variableName
                                 if !functionOperandCall.operand.type.function?()
                                     then errorWrongType(variableName.replaceValue(functionOperandCall.operand.type.toToken()[]))
@@ -1652,9 +1648,9 @@ func getFunctionExpression(expressionBlock, compilingFunction, :tokenIndex, name
                                             then
                                                 operand := Operand
                                                 variableName .= expressionBlock.getVariableName(tokenIndex, false)
-                                                if operands .= namedOperands[variableName[]]; operands.item?()
+                                                if namedOperand .= namedOperands[variableName[]]; namedOperand.item?()
                                                     then
-                                                        operand = operands[].getLast().operand
+                                                        operand = namedOperand[].operand
                                                         operand:expressionForErrors = variableName
                                                     else errorNotExist(variableName, "variable")
                                                 expressionBlock.next!(tokenIndex, ")")
@@ -1687,9 +1683,9 @@ func getFunctionExpression(expressionBlock, compilingFunction, :tokenIndex, name
                                         result:expression += MemberInExpression{token: token}.toFluid()
                                     default
                                         tokenIndex++
-                                        if operands .= namedOperands[token[]]; operands.item?()
+                                        if namedOperand .= namedOperands[token[]]; namedOperand.item?()
                                             then
-                                                operand := operands[].getLast().operand
+                                                operand := namedOperand[].operand
                                                 operand:expressionForErrors = token
                                                 result:expression += operand.toFluid()
                                             else if enumInt .= data.enums[token[]]; enumInt.item?()
@@ -1707,7 +1703,7 @@ func getFunctionExpression(expressionBlock, compilingFunction, :tokenIndex, name
 func getOperandCreator(expressionBlock, :tokenIndex, compilingFunction, namedOperands, data, :compiledData)
     rules
         1 = expressionBlock == Block & tokenIndex == UInt64 & compilingFunction == CompiledFunction
-        2 = namedOperands == Map([UInt8], [NamedOperand]) & data == Data & compiledData == CompiledData
+        2 = namedOperands == Map([UInt8], NamedOperand) & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = OperandCreator
     result:type = expressionBlock.getOperandType(tokenIndex, compilingFunction.argumentsNames, false, true)

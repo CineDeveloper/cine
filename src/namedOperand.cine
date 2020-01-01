@@ -5,7 +5,7 @@ type NamedOperand
 
 func deleteLevel(:namedOperands, compilingFunction, level, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = namedOperands == Map([UInt8], [NamedOperand]) & compilingFunction == CompiledFunction
+        1 = namedOperands == Map([UInt8], NamedOperand) & compilingFunction == CompiledFunction
         2 = level == UInt64 & registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -15,30 +15,21 @@ func deleteLevel(:namedOperands, compilingFunction, level, :registersCount, :wai
 
 func freeOperands(namedOperands, compilingFunction, level, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = namedOperands == Map([UInt8], [NamedOperand]) & compilingFunction == CompiledFunction
+        1 = namedOperands == Map([UInt8], NamedOperand) & compilingFunction == CompiledFunction
         2 = level == UInt64 & registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
         result = [UInt8]
-    parse _, operandVariants <- namedOperands
-        for opernadIndex := operandVariants.getLength() - 1; opernadIndex != UInt64.maxValue(); opernadIndex--
-            namedOperand .= operandVariants[opernadIndex]
-            if namedOperand.level >= level
-                then if !namedOperand.enslaved
-                    then result += namedOperand.operand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
-                else break
+    parse _, namedOperand <- namedOperands
+        if namedOperand.level >= level
+            then if !namedOperand.enslaved
+                then result += namedOperand.operand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
 
 proc deleteOperands(:namedOperands, level)
     rules
-        final = namedOperands == Map([UInt8], [NamedOperand]) & level == UInt64
-    newNamedOperands := Map([UInt8], [NamedOperand])
-    parse name, operandVariants <- namedOperands
-        deleteFromIndex := 0
-        for opernadIndex := operandVariants.getLength() - 1; opernadIndex != UInt64.maxValue(); opernadIndex--
-            if operand .= operandVariants[opernadIndex]; operand.level < level
-                then
-                    deleteFromIndex = opernadIndex + 1
-                    break
-        if deleteFromIndex != 0
-            then newNamedOperands:add(name, operandVariants.getFirstN(deleteFromIndex))
+        final = namedOperands == Map([UInt8], NamedOperand) & level == UInt64
+    newNamedOperands := Map([UInt8], NamedOperand)
+    parse name, namedOperand <- namedOperands
+        if namedOperand.level < level
+            then newNamedOperands:add(name, namedOperand)
     namedOperands = newNamedOperands

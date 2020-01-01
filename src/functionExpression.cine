@@ -381,8 +381,8 @@ func compute0PriorityOperations(expression, compilingFunction, :registersCount, 
                     then expressionForErrors:value = expressionForErrors[].getAllExceptLastN(2)
                 expressionForErrors:value += ")"
                 function .= data.getFunction(functionOperand.functionName, fakeArguments, functionOperand.haveResult, compiledData)
-                parse index, argument <- function.arguments
-                    if argument.mutable != fakeArguments[index].mutable
+                parse fakeIndex, argument <- function.arguments
+                    if argument.mutable != fakeArguments[fakeIndex].mutable
                         then errorFunctionNotExist(functionOperand.functionName, functionOperand.haveResult, fakeArguments)
                 precompiledFunction .= function.precompile(data, fakeArguments, compiledData)
                 waitingFunctions += Pair(Function, [Operand]).create(function, fakeArguments)
