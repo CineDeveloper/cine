@@ -2,16 +2,16 @@ type FunctionInExpression
     name Token
     arguments [FunctionExpression]
 
-func toOperand(functionInExpression, compilingFunction, :registersCount, :waitingFunctions, haveResult, data, :compiledData)
+func toOperand(functionInExpression, :registersCount, :waitingFunctions, haveResult, data, :compiledData)
     rules
-        1 = functionInExpression == FunctionInExpression & compilingFunction == CompiledFunction & registersCount == UInt64
+        1 = functionInExpression == FunctionInExpression & registersCount == UInt64
         2 = waitingFunctions == [Pair(Function, [Operand])] & haveResult == Bool & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = Pair([UInt8], Operand)
     arguments := [Operand].init(functionInExpression.arguments.getLength())
     tmpOperands := Map([UInt8], Operand)
     parse argumentIndex, argumentExpression <- functionInExpression.arguments
-        code_argumentOperand .= argumentExpression.compile(compilingFunction, registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+        code_argumentOperand .= argumentExpression.compile(registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
         result:first += code_argumentOperand.first
         arguments:setItem(argumentIndex, code_argumentOperand.second)
     function .= data.getFunction(functionInExpression.name, arguments, haveResult, compiledData)
@@ -56,4 +56,4 @@ func toOperand(functionInExpression, compilingFunction, :registersCount, :waitin
                     result:second:expressionForErrors:value = result.second.expressionForErrors.value.getAllExceptLastN(2)
             result:second:expressionForErrors:value += ')'
         else result:first:join("\t", cFunctionCall, ";\n")
-    result:first += tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+    result:first += tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData)

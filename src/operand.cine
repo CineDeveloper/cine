@@ -48,16 +48,16 @@ func createNewRegister(:registersCount, mutable, cType, value)
     result:first += ";\n"
     registersCount++
 
-func freeOperands(:tmpOperands, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+func freeOperands(:tmpOperands, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = tmpOperands == Map([UInt8],Operand) & compilingFunction == CompiledFunction & registersCount == UInt64
+        1 = tmpOperands == Map([UInt8],Operand) & registersCount == UInt64
         2 = waitingFunctions == [Pair(Function,[Operand])] & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
     if tmpOperands.getLength() != 0
         then
             parse _, operand <- tmpOperands
-                result += operand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                result += operand.freeOperand(registersCount, waitingFunctions, data, compiledData)
             tmpOperands = #tmpOperands
 
 func toOperandsTypes(operands)
@@ -73,9 +73,9 @@ proc put(:tmpOperands, operand)
     if operand.value != ""
         then tmpOperands:add(operand.value, operand)
 
-func useOperand(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+func useOperand(operand, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        1 = operand == Operand & registersCount == UInt64
         2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
@@ -83,12 +83,12 @@ func useOperand(operand, compilingFunction, :registersCount, :waitingFunctions, 
         then
             roOperand .= operand.toReadOnly()
             result = FunctionInExpression{name: operand.expressionForErrors.replaceValue("use"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{roOperand.toFluid()}}}}{
-                .toOperand(compilingFunction, registersCount, waitingFunctions, false, data, compiledData).first
+                .toOperand(registersCount, waitingFunctions, false, data, compiledData).first
             }
 
-func freeOperand(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+func freeOperand(operand, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        1 = operand == Operand & registersCount == UInt64
         2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
@@ -96,12 +96,12 @@ func freeOperand(operand, compilingFunction, :registersCount, :waitingFunctions,
         then
             roOperand .= operand.toReadOnly()
             result = FunctionInExpression{name: roOperand.expressionForErrors.replaceValue("free"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{roOperand.toFluid()}}}}{
-                .toOperand(compilingFunction, registersCount, waitingFunctions, false, data, compiledData).first
+                .toOperand(registersCount, waitingFunctions, false, data, compiledData).first
             }
 
-func cloneMembers(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+func cloneMembers(operand, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        1 = operand == Operand & registersCount == UInt64
         2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = Pair([UInt8], Operand)
@@ -119,7 +119,7 @@ func cloneMembers(operand, compilingFunction, :registersCount, :waitingFunctions
             haveLink: memberType.haveLink}
         }
         code_clonedMember .= FunctionInExpression{name: operand.expressionForErrors.replaceValue("clone"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{memberOperand.toFluid()}}}}{
-            .toOperand(compilingFunction, registersCount, waitingFunctions, true, data, compiledData)
+            .toOperand(registersCount, waitingFunctions, true, data, compiledData)
         }
         code:join(code_clonedMember.first, "\t", code_register.second, ".", name, "_ = ", code_clonedMember.second.value, ";\n")
     resultOperand := operand
@@ -127,9 +127,9 @@ func cloneMembers(operand, compilingFunction, :registersCount, :waitingFunctions
     resultOperand:constant = false
     resultOperand:expressionForErrors:value = "clone(".join(resultOperand.expressionForErrors[], ")")
 
-func freeMembers(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+func freeMembers(operand, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        1 = operand == Operand & registersCount == UInt64
         2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
@@ -144,11 +144,11 @@ func freeMembers(operand, compilingFunction, :registersCount, :waitingFunctions,
             typeNumber: memberType.typeNumber,
             haveLink: memberType.haveLink}
         }
-        result += memberOperand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+        result += memberOperand.freeOperand(registersCount, waitingFunctions, data, compiledData)
 
-func useMembers(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+func useMembers(operand, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = operand == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        1 = operand == Operand & registersCount == UInt64
         2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
@@ -163,11 +163,11 @@ func useMembers(operand, compilingFunction, :registersCount, :waitingFunctions, 
             typeNumber: memberType.typeNumber,
             haveLink: memberType.haveLink}
         }
-        result += memberOperand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+        result += memberOperand.useOperand(registersCount, waitingFunctions, data, compiledData)
 
-func setOperand(destionation, source, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
+func setOperand(destionation, source, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = destionation == Operand & source == Operand & compilingFunction == CompiledFunction & registersCount == UInt64
+        1 = destionation == Operand & source == Operand & registersCount == UInt64
         2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
@@ -188,7 +188,7 @@ func setOperand(destionation, source, compilingFunction, :registersCount, :waiti
             if destionation.cType.getLast() == '*'
                 then result:join("(", destionation.cType, ")(", source.value, ");\n")
                 else result:join(source.value, ";\n")
-            result += tmpOperand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+            result += tmpOperand.freeOperand(registersCount, waitingFunctions, data, compiledData)
         else
             if destionation.value[0] == '&'
                 then result:join("\t", destionation.value.getAllExceptFirst(), " = ")

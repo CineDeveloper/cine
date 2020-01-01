@@ -3,19 +3,19 @@ type NamedOperand
     operand Operand
     enslaved Bool
 
-func deleteLevel(:namedOperands, compilingFunction, level, :registersCount, :waitingFunctions, data, :compiledData)
+func deleteLevel(:namedOperands, level, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = namedOperands == Map([UInt8], NamedOperand) & compilingFunction == CompiledFunction
+        1 = namedOperands == Map([UInt8], NamedOperand)
         2 = level == UInt64 & registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
         result = [UInt8]
-    result = namedOperands.freeOperands(compilingFunction, level, registersCount, waitingFunctions, data, compiledData)
+    result = namedOperands.freeOperands(level, registersCount, waitingFunctions, data, compiledData)
     namedOperands:deleteOperands(level)
 
-func freeOperands(namedOperands, compilingFunction, level, :registersCount, :waitingFunctions, data, :compiledData)
+func freeOperands(namedOperands, level, :registersCount, :waitingFunctions, data, :compiledData)
     rules
-        1 = namedOperands == Map([UInt8], NamedOperand) & compilingFunction == CompiledFunction
+        1 = namedOperands == Map([UInt8], NamedOperand)
         2 = level == UInt64 & registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
         3 = data == Data & compiledData == CompiledData
         final = 1 & 2 & 3
@@ -23,7 +23,7 @@ func freeOperands(namedOperands, compilingFunction, level, :registersCount, :wai
     parse _, namedOperand <- namedOperands
         if namedOperand.level >= level
             then if !namedOperand.enslaved
-                then result += namedOperand.operand.freeOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                then result += namedOperand.operand.freeOperand(registersCount, waitingFunctions, data, compiledData)
 
 proc deleteOperands(:namedOperands, level)
     rules
@@ -33,3 +33,11 @@ proc deleteOperands(:namedOperands, level)
         if namedOperand.level < level
             then newNamedOperands:add(name, namedOperand)
     namedOperands = newNamedOperands
+
+func getAllNamesAndTypes(namedOperands)
+    rules
+        final = namedOperands == Map([UInt8], NamedOperand)
+        result = Pair([[UInt8]], [OperandType])
+    parse name, namedOperand <- namedOperands
+        result:first += name
+        result:second += namedOperand.operand.type
