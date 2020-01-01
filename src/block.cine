@@ -12,6 +12,10 @@ enums
     pif_Operand
     pif_Minus
 
+    ep_any
+    ep_true
+    ep_false
+
 func toFunction(block)
     rules
         final = block == Block
@@ -666,13 +670,20 @@ func compileMif(mifBlock, compilingFunction, currentLevel, :namedOperands, :regi
             predicateBlock .= Block{line: variants.line.getSlice(previousLastIndex, separatorIndex)}
             previousLastIndex = separatorIndex + 1
             tokenIndex := 0
+            expectedPredicate .= select(predicateBlock.next?(tokenIndex, ">"), ep_true, select(predicateBlock.next?(tokenIndex, "<"), ep_false, ep_any))
             code_predicate .= predicateBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType{baseType: Token{value: "Bool"}}, tmpOperands)
             predicateBlock.eol!(tokenIndex)
             result += code_predicate.first
             predicate .= code_predicate.second.toReadOnly()
-            result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), {
-                "\tif (", predicate.value, "){__mif_variant = ", (variantIndex + 1).toString(), "; break;}\n")
-            }
+            result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), "\tif (")
+            case expectedPredicate of
+                ep_any
+                    result += predicate.value
+                ep_true
+                    result:join("__builtin_expect(", predicate.value, ", true)")
+                ep_false
+                    result:join("__builtin_expect(", predicate.value, ", false)")
+            result:join("){__mif_variant = ", (variantIndex + 1).toString(), "; break;}\n")
     result += "\tbreak;\n\t}\n\tswitch (__mif_variant){\n"
     parse variantIndex, variants <- allVariants
         variants.subBlocks!()
@@ -954,11 +965,20 @@ func compileIf(ifBlock, compilingFunction, currentLevel, :namedOperands, :regist
         result += expressionBlock.compile(compilingFunction, currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
         previousSeparatorIndex = separatorIndex
     tokenIndex = previousSeparatorIndex + 1
+    expectedPredicate .= select(ifBlock.next?(tokenIndex, ">"), ep_true, select(ifBlock.next?(tokenIndex, "<"), ep_false, ep_any))
     code_predicate .= ifBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType{baseType: Token{value: "Bool"}}, tmpOperands)
     ifBlock.eol!(tokenIndex)
     result += code_predicate.first
     predicate .= code_predicate.second.toReadOnly()
-    result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), "\tif (", predicate.value, ") {\n")
+    result:join(tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData), "\tif (")
+    case expectedPredicate of
+        ep_any
+            result += predicate.value
+        ep_true
+            result:join("__builtin_expect(", predicate.value, ", true)")
+        ep_false
+            result:join("__builtin_expect(", predicate.value, ", false)")
+    result += ") {\n"
     thenBlock .= ifBlock.subBlocks[0]
     if thenBlock.line.getLength() != 1
         then
