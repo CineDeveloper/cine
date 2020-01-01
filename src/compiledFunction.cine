@@ -14,7 +14,6 @@ func getNamedOperands(compilingFunction, arguments, resultType)
         mutArgument:value = argumentName + '_'
         mutArgument:constant = false
         mutArgument:expressionForErrors = Token
-        mutArgument:static = false
         result:add(argumentName, NamedOperand{level: 0, operand:mutArgument})
     if compilingFunction.type.result.getLength() == 1
         then

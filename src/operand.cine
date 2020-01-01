@@ -3,7 +3,7 @@ type Operand
     expressionForErrors Token
     type OperandType
     typeNumber UInt64
-    mutable, static, constant, haveLink Bool
+    mutable, constant, haveLink Bool
 
 func toReadOnly(operand)
     rules
@@ -79,7 +79,7 @@ func useOperand(operand, compilingFunction, :registersCount, :waitingFunctions, 
         2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
-    if operand.haveLink && !(operand.constant || operand.type.function?() || operand.static)
+    if operand.haveLink && !(operand.constant || operand.type.function?())
         then
             roOperand .= operand.toReadOnly()
             result = FunctionInExpression{name: operand.expressionForErrors.replaceValue("use"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{roOperand.toFluid()}}}}{
@@ -92,7 +92,7 @@ func freeOperand(operand, compilingFunction, :registersCount, :waitingFunctions,
         2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
-    if operand.haveLink && !(operand.constant || operand.type.function?() || operand.static)
+    if operand.haveLink && !(operand.constant || operand.type.function?())
         then
             roOperand .= operand.toReadOnly()
             result = FunctionInExpression{name: roOperand.expressionForErrors.replaceValue("free"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{roOperand.toFluid()}}}}{
@@ -124,7 +124,6 @@ func cloneMembers(operand, compilingFunction, :registersCount, :waitingFunctions
         code:join(code_clonedMember.first, "\t", code_register.second, ".", name, "_ = ", code_clonedMember.second.value, ";\n")
     resultOperand := operand
     resultOperand:value = code_register.second
-    resultOperand:static = false
     resultOperand:constant = false
     resultOperand:expressionForErrors:value = "clone(".join(resultOperand.expressionForErrors[], ")")
 
@@ -180,7 +179,6 @@ func setOperand(destionation, source, compilingFunction, :registersCount, :waiti
         then
             tmpOperand := destionation
             tmpOperand:mutable = false
-            tmpOperand:static = false
             code_value .= registersCount:createNewRegister(false, destionation.cType, destionation.toReadOnly().value)
             result = code_value.first
             tmpOperand:value = code_value.second

@@ -404,7 +404,7 @@ func compile(functionExpression, compilingFunction, currentLevel, :namedOperands
             isEqExpression := true
             if functionExpression.line.getLength() > 1
                 then case functionExpression.line[1][] of
-                    ":="; ".="; "<:>"; "<.>"
+                    ":="; ".="
                         isEqExpression = false
             if isEqExpression
                 then result = functionExpression.compileEqExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData)
@@ -1244,57 +1244,37 @@ func compileNewVariableExpression(newVariableBlock, currentLevel, compilingFunct
         result = [UInt8]
     newVariableBlock.noSubBlocks!()
     tmpOperands := Map([UInt8], Operand)
-    variableDeclaration := newVariableBlock.line[1][]
-    static .= variableDeclaration[0] == '<'
-    variableDeclaration = "" + select(static, variableDeclaration[1], variableDeclaration[0])
-    mutable .= variableDeclaration == ":"
+    variableDeclaration .= newVariableBlock.line[1][][0]
+    mutable .= variableDeclaration == ':'
     tokenIndex := 0
     variableName .= newVariableBlock.getVariableName(tokenIndex, true)
     tokenIndex++
     code_operand .= newVariableBlock.compileSimpleExpression(compilingFunction, namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType, tmpOperands)
     newVariableBlock.eol!(tokenIndex)
     operand := code_operand.second
-    code := code_operand.first
+    result = code_operand.first
     if tmpOperands[operand.value].item?()
         then tmpOperands -= operand.value
         else if !operand.value.hasSuffix?("{0}")
             then
                 operand = operand.toReadOnly()
-                code += operand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
-    code += tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+                result += operand.useOperand(compilingFunction, registersCount, waitingFunctions, data, compiledData)
+    result += tmpOperands:freeOperands(compilingFunction, registersCount, waitingFunctions, data, compiledData)
     if namedOperands[variableName[]].item?()
         then errorAlreadyExist(variableName, "variable")
-    if static
-        then
-            result:join({
-                "\tstatic ", operand.cType, " ", variableName[], "_;\n\tstatic bool ", variableName[], "__if = false;\n",
-                "\tif (!__builtin_expect(", variableName[], "__if, true)) {\n\t", variableName[], "__if = true;\n", code)
-            }
-            if operand.cType.getLast() == '*'
-                then result:join("\t", variableName[], "_ = (", operand.cType, ")(", operand.value + ");\n\t}\n")
-                else result:join("\t", variableName[], "_ = ", operand.value, ";\n\t}\n")
-            if mutable
-                then
-                    operand:value = "&".join(variableName[], "_")
-                    operand:static = true
-                    operand:mutable = true
-                else operand:value = variableName[] + '_'
-        else
-            result = code
-            if mutable
-                then
-                    if operand.cType.getLast() == '*'
-                        then result:join("\t", operand.cType, " ", variableName[], "_ = (", operand.cType, ")(", operand.value + ");\n")
-                        else result:join("\t", operand.cType, " ", variableName[], "_ = ", operand.value, ";\n")
-                    operand:value = "&".join(variableName[], "_")
-                    operand:mutable = true
-                else
-                    if variableDeclaration == "." && operand.type.function?()
-                        then result:join("\t", operand.cType, " const ", variableName[], "_ = (const ", operand.cType, ")(", operand.value, ");\n")
-                        else result:join("\t", operand.cType, " const ", variableName[], "_ = ", operand.value, ";\n")
-                    operand:value = variableName[] + '_'
     if mutable
-        then operand:constant = false
+        then
+            if operand.cType.getLast() == '*'
+                then result:join("\t", operand.cType, " ", variableName[], "_ = (", operand.cType, ")(", operand.value + ");\n")
+                else result:join("\t", operand.cType, " ", variableName[], "_ = ", operand.value, ";\n")
+            operand:value = "&".join(variableName[], "_")
+            operand:mutable = true
+            operand:constant = false
+        else
+            if variableDeclaration == '.' && operand.type.function?()
+                then result:join("\t", operand.cType, " const ", variableName[], "_ = (const ", operand.cType, ")(", operand.value, ");\n")
+                else result:join("\t", operand.cType, " const ", variableName[], "_ = ", operand.value, ";\n")
+            operand:value = variableName[] + '_'
     namedOperands:add(variableName[], NamedOperand{level: currentLevel, operand: operand})
 
 func getVariableName(block, :tokenIndex, fullCheck)
