@@ -3,6 +3,8 @@ type FunctionTypeArgument
     mutable Bool
 
 func toOperandsTypes(arguments)
+    attributes
+        alwaysInline
     rules
         final = arguments == [FunctionTypeArgument]
         result = [OperandType]

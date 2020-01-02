@@ -19,7 +19,7 @@ func compile(type, data, :compiledData, :compilingTypes)
         final = type == OperandType & data == Data & compiledData == CompiledData & compilingTypes == Set([UInt8])
         result = CompiledType
     typeToken .= type.toToken()
-    if compilingTypes[typeToken[]]
+    if < compilingTypes[typeToken[]]
         then errorRecursiveType(typeToken)
     if compiledType .= compiledData.types[typeToken[]]; compiledType.item?()
         then return compiledType[]
@@ -52,7 +52,7 @@ func compile(type, data, :compiledData, :compilingTypes)
             cStructDef += ");\n"
         else
             baseType .= data.getType(type.baseType)
-            if baseType.arguments.getLength() != type.arguments.getLength()
+            if < baseType.arguments.getLength() != type.arguments.getLength()
                 then errorWrongType(type.toToken())
             result:typeNumber = compiledData.types.getLength()
             if baseType.c
@@ -82,7 +82,7 @@ func compile(type, data, :compiledData, :compilingTypes)
                     sortedMembers := [[UInt8]].dummy(baseType.members.getLength())
                     parse _, member <- baseType.members
                         memberType .= member.type.toRealOperandType(baseType.arguments, type.arguments)
-                        if memberType.empty?()
+                        if < memberType.empty?()
                             then errorWrongType(member.type.toToken())
                         isSlice .= memberType[].baseType[] == "Slice"
                         memberCompiledType .= select(isSlice, memberType[].compile(data, compiledData), memberType[].compile(data, compiledData, compilingTypes))
@@ -111,6 +111,8 @@ func private_memberLessFunc(a, b)
     result = (a >= b || a[0] == '0') && b[0] != '0'
 
 func function?(type)
+    attributes
+        alwaysInline
     rules
         final = type == OperandType
         result = Bool
@@ -164,7 +166,7 @@ func toRealCStructDef(cStructDef, typeNumber, argumentsNames, argumentsTypes, da
                             result:join(argumentsTypes[argumentIndex].compile(data, compiledData, compilingTypes).cType, parts[partIndex + 1])
                             argumentFound = true
                             break
-                if !argumentFound
+                if < !argumentFound
                     then errorNotExist(cStructDef.replaceValue(argumentNameInType), "type argument")
         else result = cStructDef[]
     result = result.replace("^^", "t" + typeNumber.toString())
@@ -259,7 +261,7 @@ proc type!(operandType, data)
     if operandType.baseType[][0].upper?()
         then
             type .= data.getType(operandType.baseType)
-            if type.arguments.getLength() == operandType.arguments.getLength()
+            if > type.arguments.getLength() == operandType.arguments.getLength()
                 then parse _, argument<- operandType.arguments
                     argument.type!(data)
                 else errorWrongType(operandType.toToken())
@@ -271,6 +273,8 @@ proc type!(operandType, data)
                     argument.type.type!(data)
 
 func empty?(type)
+    attributes
+        alwaysInline
     rules
         final = type == OperandType
         result = Bool

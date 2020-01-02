@@ -20,7 +20,7 @@ func toOperand(functionInExpression, :registersCount, :waitingFunctions, haveRes
     parse index, argument <- function.arguments
         realArgument .= arguments[index]
         if argument.mutable
-            then if !realArgument.mutable
+            then if < !realArgument.mutable
                 then errorExpectMutable(realArgument.expressionForErrors)
             else if realArgument.mutable
                 then arguments:setItem(index, realArgument.toReadOnly())
@@ -31,7 +31,7 @@ func toOperand(functionInExpression, :registersCount, :waitingFunctions, haveRes
                     then
                         mainObject1 .= argument1.getMainObjectName()
                         mainObject2 .= argument2.getMainObjectName()
-                        if mainObject1 != "" && mainObject1 == mainObject2
+                        if < mainObject1 != "" && mainObject1 == mainObject2
                             then errorSeveralVariableToFunction(argument1.expressionForErrors, argument2.expressionForErrors)
     precompiledFunction .= function.precompile(data, arguments, compiledData)
     waitingFunctions += Pair(Function, [Operand]).create(function, arguments)

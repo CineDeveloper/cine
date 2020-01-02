@@ -10,7 +10,7 @@ func getBlock(file, levelError, expectedLevel, fileName, fileIndex, :lineIndex)
             line := file[lineIndex]
             currentLevel := line.getLevel()
             if currentLevel != expectedLevel
-                then if levelError
+                then if < levelError
                     then errorWrongLevel(fileName, lineIndex, expectedLevel, currentLevel)
                 else
                     tokens := line.getAllTokens(fileName, fileIndex, lineIndex, currentLevel)
@@ -27,7 +27,7 @@ func getBlock(file, levelError, expectedLevel, fileName, fileIndex, :lineIndex)
                             tokens = tokens.getAllExceptLast()
                             for
                                 lineIndex = file.getFirstNotEmptyLineIndex(fileName, lineIndex)
-                                if lineIndex >= file.getLength()
+                                if < lineIndex >= file.getLength()
                                     then errorNotExpectedToken(tokens.getLast(), "}")
                                 line = file[lineIndex]
                                 currentLevel = line.getLevel()

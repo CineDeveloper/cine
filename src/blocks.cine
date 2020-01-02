@@ -4,7 +4,7 @@ func loadBlocks(intputFiles)
         result = [Block]
     parse fileIndex, fileName <- intputFiles
         file .= loadFile(fileName)
-        if file.empty?()
+        if < file.empty?()
             then errorCantLoadFile(fileName)
         lines .= file[].convertTo([UInt8]).asString().split('\n')
         lineIndex := 0
@@ -53,7 +53,7 @@ func getTypeMembers(blocks, argumets)
     parse _, membersBlock <- blocks
         members .= membersBlock.getTypeMembersFromOneLine(argumets)
         parse _, member <- members
-            if result[member.name[]].item?()
+            if < result[member.name[]].item?()
                 then errorAlreadyExist(member.name, "type member")
             result:add(member.name[], member)
 
@@ -79,29 +79,29 @@ func getFunctionAttributes(attributes)
         attribute .= attributeBlock.next(tokenIndex)
         case attribute[] of
             "deprecated"
-                if result.deprecated
+                if < result.deprecated
                     then errorAlreadyExist(attribute, "function attribute")
                 result:deprecated = true
             "alwaysInline"
-                if result.alwaysInline
+                if < result.alwaysInline
                     then errorAlreadyExist(attribute, "function attribute")
-                if result.noInline
+                if < result.noInline
                     then errorNotExpectedToken(attribute, "")
                 result:alwaysInline = true
             "noInline"
-                if result.noInline
+                if < result.noInline
                     then errorAlreadyExist(attribute, "function attribute")
-                if result.alwaysInline
+                if < result.alwaysInline
                     then errorNotExpectedToken(attribute, "")
                 result:noInline = true
             "id"
-                if result.id[] != ""
+                if < result.id[] != ""
                     then errorAlreadyExist(attribute, "function attribute")
                 attributeBlock.next!(tokenIndex, "=")
                 id .= attributeBlock.next(tokenIndex)
                 tokenIndex--
                 _ = attributeBlock.getString(tokenIndex)
-                if id[] == ""
+                if < id[] == ""
                     then errorNotExpectedToken(id, "")
                 result:id =id
             default

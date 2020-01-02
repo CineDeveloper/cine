@@ -57,10 +57,10 @@ proc writeToFile(compiledData, outputFileName, flagsFileName)
         "();\n\treturn 0;\n}\n\n",
         compiledData.cFunctions)
     }
-    if !outputFile.convertTo(BinaryData).writeToFile(outputFileName)
+    if < !outputFile.convertTo(BinaryData).writeToFile(outputFileName)
         then errorCantWriteToFile(outputFileName)
     flagsFile := ""
     parse name, description <- compiledData.flags
         flagsFile:join(name, " ", description, "\n")
-    if !flagsFile.convertTo(BinaryData).writeToFile(flagsFileName)
+    if < !flagsFile.convertTo(BinaryData).writeToFile(flagsFileName)
         then errorCantWriteToFile(flagsFileName)

@@ -1,9 +1,13 @@
 func version()
+    attributes
+        alwaysInline
     rules
         result = [UInt8]
     result = "0.1"
 
 func helpMessage()
+    attributes
+        alwaysInline
     rules
         result = [UInt8]
     result = "Cine compiler\n"{
@@ -45,31 +49,35 @@ func getFiles()
                         gettingInput = false
                     default
                         mif
-                            argument[0] == '-'
+                            < argument[0] == '-'
                                 errorWrongCMDLineArg(argument)
                             gettingInput
                                 parse _, existedInputFile <- result.first
-                                    if existedInputFile == argument
+                                    if < existedInputFile == argument
                                         then errorInputFileSpecifiedSeverealTimes(existedInputFile)
                                 result:first += argument
                             gettingOutput
-                                if result:second != ""
+                                if < result:second != ""
                                     then errorManyOutputFiles()
                                     else result:second = argument
                             gettingFlags
-                                if result:third != ""
+                                if < result:third != ""
                                     then errorManyFlagsFiles()
                                     else result:third = argument
             if result.first.getLength() == 0  || result.second == "" || result.third == ""
                 then showMessage(helpMessage())
 
 proc onlyOne!(argument)
+    attributes
+        alwaysInline
     rules
         final = argument == [UInt8]
-    if getCMDArgumetsCount() != 1
+    if < getCMDArgumetsCount() != 1
         then errorUnnecessaryArgument(argument)
 
 proc showMessage(message)
+    attributes
+        noInline
     rules
         final = message == [UInt8]
     message.printLn()

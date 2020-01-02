@@ -8,6 +8,8 @@ type Function
     isFunction Bool
 
 func getFunctionArgumentsID(function)
+    attributes
+        alwaysInline
     rules
         final = function == Function
         result = UInt8
@@ -36,7 +38,7 @@ func precompile(function, data, arguments, :compiledData)
                     resultBlock.next!(tokenIndex, "=")
                     resultType .= resultBlock.getOperandType(tokenIndex, result.argumentsNames, false, true)
                     realResultType .= resultType.toRealOperandType(result.argumentsNames, result.type.arguments.toOperandsTypes())
-                    if realResultType.empty?()
+                    if < realResultType.empty?()
                         then errorWrongType(resultType.toToken())
                     result:type:result = [OperandType]{realResultType[]}
             compiledData:functions:add(result.cName, result)
@@ -53,8 +55,13 @@ proc compile(function, data, arguments, :waitingFunctions, :compiledData)
         then return
     compilingFunction:fullCompiled = true
     functionSignature := "static "
-    if !(function.attributes.noInline || function.attributes.alwaysInline)
-        then functionSignature += "inline "
+    mif
+        function.attributes.alwaysInline
+            functionSignature += " __attribute__((always_inline)) "
+        function.attributes.noInline
+            functionSignature += " __attribute__((noinline)) "
+        default
+            functionSignature += "inline "
     resultType := CompiledType
     if compilingFunction.type.result.getLength() == 0
         then functionSignature += "void "
@@ -70,11 +77,6 @@ proc compile(function, data, arguments, :waitingFunctions, :compiledData)
     if functionSignature.getLast() == ' '
         then functionSignature = functionSignature.getAllExceptLastN(2)
     functionSignature += ')'
-    mif
-        function.attributes.alwaysInline
-            functionSignature += " __attribute__((always_inline))"
-        function.attributes.noInline
-            functionSignature += " __attribute__((noinline))"
     compiledData:cFunctionSignatures:join(functionSignature, ";\n")
     compiledData:cFunctions:join(functionSignature, " {\n")
     namedOperands := compilingFunction.getNamedOperands(arguments, resultType)
@@ -124,7 +126,7 @@ func finalRuleTrue?(function, data, argumentsTypes, :compiledData)
     finalRuleIndex := 0
     if function.isFunction
         then
-            if function.rules.getLength() == 0 || function.rules.getLast().line[0][] != "result"
+            if < function.rules.getLength() == 0 || function.rules.getLast().line[0][] != "result"
                 then errorNotResultType(function.name)
             if function.rules.getLength() == 1
                 then return true

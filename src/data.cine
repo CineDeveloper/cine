@@ -29,6 +29,8 @@ proc createBuiltIn(:data)
         "proc free(a) #4",
         "    builtInFree(a)",
         "proc use(a) #4",
+        "    attributes",
+        "        alwaysInline",
         "    builtInUse(a)",
         "type UInt8 C(1, \042\042, \042uint8_t\042)",
         "type UInt16 C(2, \042\042, \042uint16_t\042)",
@@ -83,28 +85,28 @@ proc add(:data, function)
     data:functions:add(function.name[], functionsWithName)
     if id .= function.attributes.id[]; id != ""
         then
-            if data.functionsByID[id].item?()
+            if < data.functionsByID[id].item?()
                 then errorAlreadyExist(function.attributes.id, "function id")
             data:functionsByID:add(id, function)
 
 proc add(:data, type)
     rules
         final = data == Data & type == Type
-    if data.types[type.name[]].item?()
+    if < data.types[type.name[]].item?()
         then errorAlreadyExist(type.name, "type")
         else data:types:add(type.name[], type)
 
 proc addEnum(:data, enum)
     rules
         final = data == Data & enum == Token
-    if data.enums[enum[]].item?()
+    if < data.enums[enum[]].item?()
         then errorAlreadyExist(enum, "enum")
         else data:enums:add(enum[], (data.enums.getLength() + 1).convertTo(UInt32))
 
 proc addGroup(:data, group)
     rules
         final = data == Data & group == Token
-    if data.groups[group[]]
+    if < data.groups[group[]]
         then errorAlreadyExist(group, "group")
         else data:groups += group[]
 
@@ -139,7 +141,7 @@ func getFunction(data, name, arguments, isFunction, :compiledData)
                                 then allSuitable += function
                         if allSuitable.getLength() == 1
                             then return allSuitable[0]
-                            else if allSuitable.getLength() > 1
+                            else if < allSuitable.getLength() > 1
                                 then errorSeveralSuitableFunctions(name, allSuitable)
     errorFunctionNotExist(name, isFunction, arguments)
 
@@ -147,20 +149,20 @@ func getType(data, type)
     rules
         final = data == Data & type == Token
         result = Type
-    if boxResult .= data.types[type[]]; boxResult.item?()
+    if boxResult .= data.types[type[]]; > boxResult.item?()
         then result = boxResult[]
         else errorNotExist(type, "type")
 
 proc groupExist!(data, name)
     rules
         final = data == Data & name == Token
-    if !data.groups[name[]]
+    if < !data.groups[name[]]
         then errorNotExist(name, "group")
 
 proc add(:data, flags)
     rules
         final = data == Data & flags == [Pair(Token, [UInt8])]
     parse _, flag_ <- flags
-        if data.flags[flag_.first[]].item?()
+        if < data.flags[flag_.first[]].item?()
             then errorAlreadyExist(flag_.first, "flag")
             else data:flags:add(flag_.first[], flag_.second)

@@ -1,4 +1,6 @@
 func getLevel(line)
+    attributes
+        alwaysInline
     rules
         final = line == [UInt8]
         result = UInt64
@@ -48,7 +50,7 @@ func getToken(line, file, fileIndex, lineIndex, :rowIndex)
                                 resultToken:value = "/"
                                 resultToken:row = rowIndex - 1
                             line[rowIndex] == '*'
-                                if endOffset .= line.getAllExceptFirstN(rowIndex + 1).look("*/"); endOffset.item?()
+                                if endOffset .= line.getAllExceptFirstN(rowIndex + 1).look("*/"); > endOffset.item?()
                                     then
                                         rowIndex += endOffset[] + 3
                                         continue
@@ -66,7 +68,7 @@ func getToken(line, file, fileIndex, lineIndex, :rowIndex)
             line[rowIndex] == ' '
                 if nameFound || symbolsFound
                     then break all
-            line[rowIndex] == '\t'
+            < line[rowIndex] == '\t'
                 errorTabNotAllowed(file, lineIndex + 1, rowIndex + 1)
             line[rowIndex] == '\042' || line[rowIndex] == '\047'
                 if !(nameFound || symbolsFound)
@@ -75,7 +77,7 @@ func getToken(line, file, fileIndex, lineIndex, :rowIndex)
                         firstChar .= line[firstIndex]
                         for
                             rowIndex++
-                            if rowIndex == line.getLength()
+                            if < rowIndex == line.getLength()
                                 then errorNotExpectedEOL(Token{file: file, line: lineIndex, row: line.getLength()}, "" + firstChar)
                                 else if line[rowIndex] == firstChar
                                     then
@@ -112,7 +114,9 @@ func getToken(line, file, fileIndex, lineIndex, :rowIndex)
     result:put(resultToken)
 
 proc level!(line, expectedLevel, file, lineIndex)
+    attributes
+        alwaysInline
     rules
         final = line == [UInt8] & expectedLevel == UInt64 & file == [UInt8] & lineIndex == UInt64
-    if currentLevel .= line.getLevel(); currentLevel != expectedLevel
+    if currentLevel .= line.getLevel(); < currentLevel != expectedLevel
         then errorWrongLevel(file, lineIndex + 1, expectedLevel, currentLevel)

@@ -95,42 +95,52 @@ func toType(block)
         else result:members = block.subBlocks.getTypeMembers(result.arguments)
 
 proc eol!(block, tokenIndex)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64
-    if tokenIndex < block.line.getLength()
+    if < tokenIndex < block.line.getLength()
         then errorNotExpectedToken(block.line.getLast(), "")
 
 proc subBlocks!(block)
+    attributes
+        alwaysInline
     rules
         final = block == Block
-    if block.subBlocks.getLength() == 0
+    if < block.subBlocks.getLength() == 0
         then
             token .= block.line[0]
             errorExpectSubBlock(token.file, token.line + 1)
 
 proc noSubBlocks!(block)
+    attributes
+        alwaysInline
     rules
         final = block == Block
-    if block.subBlocks.getLength() != 0
+    if < block.subBlocks.getLength() != 0
         then errorNotExpectedToken(block.subBlocks[0].line[0], "")
 
 func getTypeName(block, :tokenIndex, fullCheck)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
         result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].upper?()
-    if nameCorrect
+    if > nameCorrect
         then
             parse _, char <- result[].getAllExceptFirst()
                 nameCorrect = nameCorrect && char.fromName?()
             nameCorrect = nameCorrect && !result[].contain?("__")
     if nameCorrect && fullCheck
         then nameCorrect = result[] != "C"
-    if !nameCorrect
+    if < !nameCorrect
         then errorWrongName(result, "type")
 
 func next?(block, :tokenIndex, variant)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64 & variant == [UInt8]
         result = Bool
@@ -141,6 +151,8 @@ func next?(block, :tokenIndex, variant)
                 tokenIndex++
 
 func next?(block, :tokenIndex, variant1, variant2)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64 & variant1 == [UInt8] & variant2 == [UInt8]
         result = Bool
@@ -157,34 +169,40 @@ func getTypeArguments(block, :tokenIndex)
     for
         name .= block.getTypeArgumentName(tokenIndex)
         parse _, existedArgument <- result
-            if existedArgument == name[]
+            if < existedArgument == name[]
                 then errorAlreadyExist(name, "type argument")
         result += name[]
         if !block.next?(tokenIndex, ",")
             then break
 
 proc next!(block, :tokenIndex, variant)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64 & variant == [UInt8]
-    if !block.next?(tokenIndex, variant)
+    if < !block.next?(tokenIndex, variant)
         then if tokenIndex < block.line.getLength()
             then errorNotExpectedToken(block.line[tokenIndex], variant)
             else errorNotExpectedEOL(block.line.getLast(), variant)
 
 func getAlign(block, :tokenIndex)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64
         result = UInt8
-    if token .= block.next(tokenIndex); token[].getLength() == 1 && token[][0].digit?() && token[][0] != '0'
+    if token .= block.next(tokenIndex); > token[].getLength() == 1 && token[][0].digit?() && token[][0] != '0'
         then result = token[][0] - '0'
         else errorNotExpectedToken(token, "")
 
 func getString(block, :tokenIndex)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64
         result = [UInt8]
     token .= block.next(tokenIndex)
-    if token[][0] != '\042'
+    if < token[][0] != '\042'
         then errorNotExpectedToken(token, "")
     result = token[].getAllExceptFirst().getAllExceptLast()
 
@@ -206,17 +224,19 @@ func getTypeMembersFromOneLine(block, argumentsNames)
         result += TypeMember{name: memberName, type:membersType}
 
 func getTypeMemberName(block, :tokenIndex)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64
         result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
-    if nameCorrect
+    if > nameCorrect
         then
             parse _, char <- result[].getAllExceptFirst()
                 nameCorrect = nameCorrect && char.fromName?()
             nameCorrect = nameCorrect && !result[].contain?("__")
-    if !nameCorrect
+    if < !nameCorrect
         then errorWrongName(result, "type member")
 
 func getOperandType(block, :tokenIndex, argumentsNames, allowUndefined, allowIndexing)
@@ -247,7 +267,7 @@ func getOperandType(block, :tokenIndex, argumentsNames, allowUndefined, allowInd
             parse _, existedArgument <- argumentsNames
                 if argumentExist = existedArgument == token[]; argumentExist
                     then break
-            if !argumentExist
+            if < !argumentExist
                 then
                     whatNotExist .= select(allowIndexing, "function argument", "type argument")
                     errorNotExist(token, whatNotExist)
@@ -275,10 +295,12 @@ func getOperandType(block, :tokenIndex, argumentsNames, allowUndefined, allowInd
                     block.next!(tokenIndex, ")")
 
 func next(block, :tokenIndex)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64
         result = Token
-    if tokenIndex >= block.line.getLength()
+    if < tokenIndex >= block.line.getLength()
         then errorNotExpectedEOL(block.line.getLast(), "")
     result = block.line[tokenIndex]
     tokenIndex++
@@ -294,16 +316,18 @@ func getFunctionTypeArguments(block, :tokenIndex, argumentsNames, allowUndefined
             then break
 
 func getFunctionArgumentName(block, :tokenIndex, fullCheck)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
         result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
-    if nameCorrect
+    if > nameCorrect
         then
             parse _, char <- result[].getAllExceptFirst()
                 nameCorrect = nameCorrect && char.fromName?()
-            if nameCorrect
+            if > nameCorrect
                 then nameCorrect = !result[].contain?("__")
     if nameCorrect && fullCheck
         then case result[] of
@@ -314,30 +338,34 @@ func getFunctionArgumentName(block, :tokenIndex, fullCheck)
                 nameCorrect = false
             default
                 nameCorrect = !result[].hasPrefix?("builtIn")
-    if !nameCorrect
+    if < !nameCorrect
         then errorWrongName(result, "function argument")
 
 func getTypeArgumentName(block, :tokenIndex)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64
         result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
-    if nameCorrect
+    if > nameCorrect
         then
             parse _, char <- result[].getAllExceptFirst()
                 nameCorrect = nameCorrect && char.fromName?()
             nameCorrect = nameCorrect && !result[].contain?("__")
-    if !nameCorrect
+    if < !nameCorrect
         then errorWrongName(result, "type argument")
 
 func getFunctionName(block, :tokenIndex, fullCheck)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
         result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
-    if nameCorrect
+    if > nameCorrect
         then
             parse _, char <- result[].getAllExceptFirst()
                 nameCorrect = nameCorrect && char.fromName?()
@@ -350,7 +378,7 @@ func getFunctionName(block, :tokenIndex, fullCheck)
                 nameCorrect = false
             default
                 nameCorrect = !result[].hasPrefix?("builtIn")
-    if !nameCorrect
+    if < !nameCorrect
         then errorWrongName(result, "function")
 
 func getFunctionArguments(block, :tokenIndex)
@@ -361,7 +389,7 @@ func getFunctionArguments(block, :tokenIndex)
         mutable .= block.next?(tokenIndex, ":")
         name .= block.getFunctionArgumentName(tokenIndex, true)
         parse _, existedArgument <- result
-            if existedArgument.name == name[]
+            if < existedArgument.name == name[]
                 then errorAlreadyExist(name, "function argument")
         result += FunctionArgument{name: name[], mutable:mutable}
         if !block.next?(tokenIndex, ",")
@@ -433,7 +461,7 @@ func getRuleExpression(rule, :tokenIndex, argumentsNames, data)
         token .= rule.next(tokenIndex)
         case token[] of
             "("
-                if previous == pir_Nothing
+                if > previous == pir_Nothing
                     then
                         expression .= rule.getRuleExpression(tokenIndex, argumentsNames, data)
                         result:expression += expression.toFluid()
@@ -441,13 +469,13 @@ func getRuleExpression(rule, :tokenIndex, argumentsNames, data)
                         previous = pir_Register
                     else errorNotExpectedToken(token, "")
             ")"
-                if previous == pir_Register
+                if > previous == pir_Register
                     then
                         tokenIndex--
                         return
                 errorNotExpectedToken(token, "")
             "!"
-                if previous == pir_Nothing
+                if > previous == pir_Nothing
                     then
                         rule.notEOL!(tokenIndex)
                         rule.next(tokenIndex).integer!(false, false)
@@ -455,24 +483,24 @@ func getRuleExpression(rule, :tokenIndex, argumentsNames, data)
                         result:expression += RuleOperator{operator: token}.toFluid()
                     else errorNotExpectedToken(token, "")
             "&"; "|"
-                if previous == pir_Register
+                if > previous == pir_Register
                     then
                         result:expression += RuleOperator{operator: token}.toFluid()
                         previous = pir_Nothing
                     else errorNotExpectedToken(token, "")
             "!="; "=="
-                if previous == pir_Argument
+                if > previous == pir_Argument
                     then
                         result:expression += RuleOperator{operator: token}.toFluid()
                         type .= rule.getOperandType(tokenIndex, argumentsNames, true, true)
                         type.type!(data)
-                        if type.baseType[] == "_"
+                        if < type.baseType[] == "_"
                             then errorNotExpectedToken(type.baseType, "")
                         result:expression += RuleType{type: type}.toFluid()
                         previous = pir_Register
                     else errorNotExpectedToken(token, "")
             ">"
-                if previous == pir_Argument
+                if > previous == pir_Argument
                     then
                         result:expression += RuleOperator{operator: token}.toFluid()
                         group .= rule.next(tokenIndex)
@@ -482,7 +510,7 @@ func getRuleExpression(rule, :tokenIndex, argumentsNames, data)
                         previous = pir_Register
                     else errorNotExpectedToken(token, "")
             default
-                if previous == pir_Nothing
+                if > previous == pir_Nothing
                     then if token[][0].lower?()
                         then
                             tokenIndex--
@@ -490,7 +518,7 @@ func getRuleExpression(rule, :tokenIndex, argumentsNames, data)
                             result:expression += RuleFunctionArgument{argument: argument.baseType}.toFluid()
                             previous = pir_Argument
                         else
-                            if token[].integer?(false, false)
+                            if > token[].integer?(false, false)
                                 then result:expression += RuleRegisterIndex{index: token}.toFluid()
                                 else errorNotExpectedToken(token, "")
                             previous = pir_Register
@@ -499,9 +527,11 @@ func getRuleExpression(rule, :tokenIndex, argumentsNames, data)
         then rule.notEOL!(tokenIndex)
 
 proc notEOL!(block, tokenIndex)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64
-    if tokenIndex >= block.line.getLength()
+    if < tokenIndex >= block.line.getLength()
         then errorNotExpectedEOL(block.line.getLast(), "")
 
 func compileReturn(returnBlock, namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
@@ -515,7 +545,7 @@ func compileReturn(returnBlock, namedOperands, :registersCount, :waitingFunction
     resultOperand .=  select(resultOperandBox.item?(), resultOperandBox[].operand, Operand)
     if returnBlock.line.getLength() > 1
         then
-            if resultOperandBox.empty?()
+            if < resultOperandBox.empty?()
                 then errorNotExpectedToken(returnBlock.line[1], "")
             tokenIndex := 1
             tmpOperands := Map([UInt8], Operand)
@@ -557,7 +587,7 @@ func compileFor(forBlock, currentLevel, :namedOperands, :registersCount, :breakC
             initExpression:line = forBlock.line.getSlice(1, separatorsIndexes[0])
             prediacteExpression:line = forBlock.line.getSlice(separatorsIndexes[0] + 1, separatorsIndexes[1])
             endExpression:line = forBlock.line.getAllExceptFirstN(separatorsIndexes[1] + 1)
-        separatorsIndexes.getLength() == 0
+        > separatorsIndexes.getLength() == 0
             if forBlock.line.getLength() != 1
                 then prediacteExpression:line = forBlock.line.getAllExceptFirst()
         default
@@ -610,14 +640,14 @@ func compileBreak(breakBlock, currentLevel, namedOperands, :registersCount, brea
             deepAsToken := breakBlock.next(tokenIndex)
             breakBlock.eol!(tokenIndex)
             mif
-                deepAsToken[] == "0"
+                < deepAsToken[] == "0"
                     errorNotExpectedToken(deepAsToken, "")
                 deepAsToken[] == "all"
                     deep = breakCounter
                 default
                     deepAsToken.integer!(false, false)
                     deep = UInt64.fromString(deepAsToken[])[]
-    if deep > breakCounter
+    if < deep > breakCounter
         then errorBreakOrContinueToDeep(breakBlock.line[0])
     if deep != 1
         then result = "\t__breakCounter = ".join((deep - 1).toString(), ";\n")
@@ -638,14 +668,14 @@ func compileContinue(continueBlock, currentLevel, namedOperands, :registersCount
             deepAsToken := continueBlock.next(tokenIndex)
             continueBlock.eol!(tokenIndex)
             mif
-                deepAsToken[] == "0"
+                < deepAsToken[] == "0"
                     errorNotExpectedToken(deepAsToken, "")
                 deepAsToken[] == "first"
                     deep = continueCounter
                 default
                     deepAsToken.integer!(false, false)
                     deep = UInt64.fromString(deepAsToken[])[]
-    if deep > continueCounter
+    if < deep > continueCounter
         then errorBreakOrContinueToDeep(continueBlock.line[0])
     if deep != 1
         then result = "\t__continueCounter = ".join((deep - 1).toString(), ";\n")
@@ -700,7 +730,7 @@ func compileMif(mifBlock, currentLevel, :namedOperands, :registersCount, :breakC
         fallthrough_ .= functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
         if fallthrough_
             then
-                if variantIndex == mifBlock.subBlocks.getLength() - 1
+                if < variantIndex == mifBlock.subBlocks.getLength() - 1
                     then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
                 functionExpressions.getLast().noSubBlocks!()
                 functionExpressions = functionExpressions.getAllExceptLast()
@@ -711,7 +741,7 @@ func compileMif(mifBlock, currentLevel, :namedOperands, :registersCount, :breakC
         then
             result += "\tdefault:\n\t{\n"
             functionExpressions .= mifBlock.subBlocks.getLast().subBlocks
-            if functionExpressions.getLength() != 0 && functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
+            if < functionExpressions.getLength() != 0 && functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
                 then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
             parse _, functionExpression <- functionExpressions
                 result += functionExpression.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
@@ -744,7 +774,7 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
     case caseOperand.type.toToken()[] of
         "UInt8"; "UInt16"; "UInt32"; "UInt64"; "Int8"; "Int16"; "Int32"; "Int64"; "[UInt8]"
             wrongType = false
-    if wrongType
+    if < wrongType
         then errorWrongType(caseOperand.expressionForErrors.replaceValue(caseOperand.type.toToken()[]))
     allVariantsBlocks := caseBlock.subBlocks
     haveDefault .= allVariantsBlocks.getLast().line[0][] == "default" && allVariantsBlocks.getLast().line.getLength() == 1
@@ -760,9 +790,9 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
                 tokenIndex = 0
                 for
                     variant := variants.next(tokenIndex)
-                    if variant[][0] != '\042'
+                    if < variant[][0] != '\042'
                         then errorNotExpectedToken(variant, "")
-                    if allVariants[variant[]].item?()
+                    if < allVariants[variant[]].item?()
                         then errorNotExpectedToken(variant, "")
                     variant:value = variant[].getAllExceptFirst().getAllExceptLast()
                     allVariants:add(variant[], variantIndex + 1)
@@ -787,7 +817,7 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
                     then fallthrough_ = functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
                 if fallthrough_
                     then
-                        if variantIndex == caseBlock.subBlocks.getLength() - 1
+                        if < variantIndex == caseBlock.subBlocks.getLength() - 1
                             then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
                         functionExpressions.getLast().noSubBlocks!()
                         functionExpressions = functionExpressions.getAllExceptLast()
@@ -807,10 +837,10 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
                 for
                     variant .= variants.next(tokenIndex)
                     enumStr := ""
-                    if enumInt .= data.enums[variant[]]; enumInt.item?()
+                    if enumInt .= data.enums[variant[]]; > enumInt.item?()
                         then enumStr = enumInt[].toString()
                         else errorNotExist(variant, "enum")
-                    if allVariants[variant[]]
+                    if < allVariants[variant[]]
                         then errorNotExpectedToken(variant, "")
                     allVariants += variant[]
                     result:join("\tcase ", enumStr, ":\n")
@@ -826,7 +856,7 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
                     then fallthrough_ = functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
                 if fallthrough_
                     then
-                        if variantIndex == caseBlock.subBlocks.getLength() - 1
+                        if < variantIndex == caseBlock.subBlocks.getLength() - 1
                             then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
                         functionExpressions.getLast().noSubBlocks!()
                         functionExpressions = functionExpressions.getAllExceptLast()
@@ -852,7 +882,7 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
                                 then variantAsInt = Int64.fromString(variant[])[].convertTo(UInt64)
                                 else variantAsInt = UInt64.fromString(variant[])[]
                         variant[][0] == '\047'
-                            if variant[].getLength() != 3
+                            if < variant[].getLength() != 3
                                 then errorNotExpectedToken(variant, "")
                             variantAsInt = variant[][1].convertTo(UInt64)
                         default
@@ -860,7 +890,7 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
                             names_types .= namedOperands.getAllNamesAndTypes()
                             type .= variants.getOperandType(tokenIndex, names_types.first, false, true)
                             realType .= type.toRealOperandType(names_types.first, names_types.second)
-                            if realType.empty?()
+                            if < realType.empty?()
                                 then errorWrongType(type.toToken())
                             compiledType .= realType[].compile(data, compiledData)
                             variantAsInt = compiledType.typeNumber
@@ -882,7 +912,7 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
                             newVariant = variantAsInt.convertTo(Int32).toString()
                         "Int64"
                             newVariant = variantAsInt.convertTo(Int64).toString()
-                    if allVariants[newVariant]
+                    if < allVariants[newVariant]
                         then errorNotExpectedToken(variant, "")
                     allVariants += newVariant
                     result:join("\tcase ", newVariant, ":\n")
@@ -898,7 +928,7 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
                     then fallthrough_ = functionExpressions.getLast().line[0][] == "fallthrough" && functionExpressions.getLast().line.getLength() == 1
                 if fallthrough_
                     then
-                        if variantIndex == caseBlock.subBlocks.getLength() - 1
+                        if < variantIndex == caseBlock.subBlocks.getLength() - 1
                             then errorNotExpectedToken(functionExpressions.getLast().line[0], "")
                         functionExpressions.getLast().noSubBlocks!()
                         functionExpressions = functionExpressions.getAllExceptLast()
@@ -933,11 +963,11 @@ proc compileEnslave(enslaveBlock, currentLevel, :namedOperands)
     variableName .= enslaveBlock.getVariableName(tokenIndex, false)
     enslaveBlock.next!(tokenIndex, ")")
     enslaveBlock.eol!(tokenIndex)
-    if operandBox .= namedOperands[variableName[]]; operandBox.empty?()
+    if operandBox .= namedOperands[variableName[]]; < operandBox.empty?()
         then errorNotExist(variableName, "variable")
         else
             operand := operandBox[]
-            if operand.level == currentLevel
+            if > operand.level == currentLevel
                 then
                     operand:enslaved = true
                     namedOperands:add(variableName[], operand)
@@ -960,7 +990,7 @@ func compileIf(ifBlock, currentLevel, :namedOperands, :registersCount, :breakCou
         then
             tokenIndex = 0
             ifBlock.subBlocks[1].next!(tokenIndex, "else")
-        else if ifBlock.subBlocks.getLength() > 2
+        else if < ifBlock.subBlocks.getLength() > 2
             then errorNotExpectedToken(ifBlock.subBlocks[2].line[0], "")
     separatorsIndexes := [UInt64]
     parse index, token <- ifBlock.line
@@ -968,7 +998,7 @@ func compileIf(ifBlock, currentLevel, :namedOperands, :registersCount, :breakCou
             then separatorsIndexes += index
     previousSeparatorIndex := 0
     parse _, separatorIndex <- separatorsIndexes
-        if separatorIndex - previousSeparatorIndex == 1
+        if < separatorIndex - previousSeparatorIndex == 1
             then errorNotExpectedToken(ifBlock.line[separatorIndex], "")
         expressionBlock .= Block{line: ifBlock.line.getSlice(previousSeparatorIndex + 1, separatorIndex)}
         result += expressionBlock.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
@@ -1026,7 +1056,7 @@ func compileFlag(flagBlock, currentLevel, :namedOperands, :registersCount, :brea
         then
             tokenIndex = 0
             flagBlock.subBlocks[1].next!(tokenIndex, "else")
-        else if flagBlock.subBlocks.getLength() > 2
+        else if < flagBlock.subBlocks.getLength() > 2
             then errorNotExpectedToken(flagBlock.subBlocks[2].line[0], "")
     tokenIndex = 1
     flagName .= flagBlock.getFlagName(tokenIndex)
@@ -1035,7 +1065,7 @@ func compileFlag(flagBlock, currentLevel, :namedOperands, :registersCount, :brea
     flagBlock.next!(tokenIndex, "?")
     flagBlock.eol!(tokenIndex)
     flagDescription .= data.flags[flagName[]]
-    if flagDescription.item?()
+    if > flagDescription.item?()
         then compiledData:flags:add(flagName[], flagDescription[])
         else errorNotExist(flagName, "flag")
     thenBlock .= flagBlock.subBlocks[0]
@@ -1072,7 +1102,7 @@ func compileHaveLink(haveLinkBlock, currentLevel, :namedOperands, :registersCoun
     names_types .= namedOperands.getAllNamesAndTypes()
     type .= haveLinkBlock.getOperandType(tokenIndex, names_types.first, false, true)
     realType .= type.toRealOperandType(names_types.first, names_types.second)
-    if realType.empty?()
+    if < realType.empty?()
         then errorWrongType(type.toToken())
     haveLinkBlock.eol!(tokenIndex)
     result = "\t{\n"
@@ -1083,7 +1113,7 @@ func compileHaveLink(haveLinkBlock, currentLevel, :namedOperands, :registersCoun
         then
             tokenIndex = 0
             haveLinkBlock.subBlocks[1].next!(tokenIndex, "else")
-        else if haveLinkBlock.subBlocks.getLength() > 2
+        else if < haveLinkBlock.subBlocks.getLength() > 2
             then errorNotExpectedToken(haveLinkBlock.subBlocks[2].line[0], "")
     compilingBlock := Block
     if realType[].compile(data, compiledData).haveLink
@@ -1161,7 +1191,7 @@ func compileParse(parseBlock, currentLevel, :namedOperands, :registersCount, :br
             result:join(code_keyOperand.first, "\t", keyOperand.cType, " const ", keyName[], "_ = ", keyOperand.value, ";\n")
             keyOperand:value = keyName[] + '_'
             keyNamedOperandBox .= namedOperands[keyName[]]
-            if keyNamedOperandBox.empty?()
+            if > keyNamedOperandBox.empty?()
                 then namedOperands:add(keyName[], NamedOperand{level: currentLevel + 1, operand: keyOperand})
                 else errorAlreadyExist(keyName, "variable")
     if itemName[] != ""
@@ -1174,7 +1204,7 @@ func compileParse(parseBlock, currentLevel, :namedOperands, :registersCount, :br
             result:join(code_itemOperand.first, "\t", itemOperand.cType, " const ", itemName[], "_ = ", itemOperand.value, ";\n")
             itemOperand:value = itemName[] + '_'
             itemNamedOperandBox .= namedOperands[itemName[]]
-            if itemNamedOperandBox.empty?()
+            if > itemNamedOperandBox.empty?()
                 then namedOperands:add(itemName[], NamedOperand{level: currentLevel + 1, operand: itemOperand})
                 else errorAlreadyExist(itemName, "variable")
     parse _, functionExpression <- parseBlock.subBlocks
@@ -1211,7 +1241,7 @@ func insertCBlock(cBlock, namedOperands, data, :compiledData)
                     names_types .= namedOperands.getAllNamesAndTypes()
                     type .= fakeBlock.getOperandType(fakeTokeIndex, names_types.first, false, true)
                     realType .= type.toRealOperandType(names_types.first, names_types.second)
-                    if realType.empty?()
+                    if < realType.empty?()
                         then errorWrongType(type.toToken())
                     compiledType .= realType[].compile(data, compiledData)
                     newLine:join(compiledType.cType, parts[index + 1])
@@ -1291,7 +1321,7 @@ func compileNewVariableExpression(newVariableBlock, currentLevel, :namedOperands
                 operand = operand.toReadOnly()
                 result += operand.useOperand(registersCount, waitingFunctions, data, compiledData)
     result += tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData)
-    if namedOperands[variableName[]].item?()
+    if < namedOperands[variableName[]].item?()
         then errorAlreadyExist(variableName, "variable")
     if mutable
         then
@@ -1309,12 +1339,14 @@ func compileNewVariableExpression(newVariableBlock, currentLevel, :namedOperands
     namedOperands:add(variableName[], NamedOperand{level: currentLevel, operand: operand})
 
 func getVariableName(block, :tokenIndex, fullCheck)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
         result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
-    if nameCorrect
+    if > nameCorrect
         then
             parse _, char <- result[].getAllExceptFirst()
                 nameCorrect = nameCorrect && char.fromName?()
@@ -1325,7 +1357,7 @@ func getVariableName(block, :tokenIndex, fullCheck)
                 nameCorrect = false
             default
                 nameCorrect = !result[].hasPrefix?("builtIn")
-    if !nameCorrect
+    if < !nameCorrect
         then errorWrongName(result, "variable")
 
 func compileSimpleExpression(expressionBlock, namedOperands, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tokenIndex, expectedType, :tmpOperands)
@@ -1370,7 +1402,7 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                         newOperand:expressionForErrors = operand.expressionForErrors
                                         newOperand:expressionForErrors:value += token[]
                                         result:expression:setLast(newOperand.toFluid())
-                        if error
+                        if < error
                             then errorNotExpectedToken(token, "")
             "builtIn_currentLine"
                 if previous == pif_Nothing
@@ -1390,7 +1422,7 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                         newOperand:expressionForErrors = operand.expressionForErrors
                                         newOperand:expressionForErrors:value += token[]
                                         result:expression:setLast(newOperand.toFluid())
-                        if error
+                        if < error
                             then errorNotExpectedToken(token, "")
             "builtIn_currentRow"
                 if previous == pif_Nothing
@@ -1410,16 +1442,16 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                         newOperand:expressionForErrors = operand.expressionForErrors
                                         newOperand:expressionForErrors:value += token[]
                                         result:expression:setLast(newOperand.toFluid())
-                        if error
+                        if < error
                             then errorNotExpectedToken(token, "")
             "builtIn_random"
-                if previous == pif_Nothing
+                if > previous == pif_Nothing
                     then
                         result:expression += token.replaceValue(UInt64.maxValue().random().toString()).constIntToOperand(data, compiledData).toFluid()
                         previous = pif_Operand
                     else errorNotExpectedToken(token, "")
             "builtInCallFunctionByID"
-                if previous == pif_Nothing
+                if > previous == pif_Nothing
                     then
                         expressionBlock.next!(tokenIndex, "(")
                         id .= expressionBlock.next(tokenIndex)
@@ -1439,7 +1471,7 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                         previous = pif_Operand
                     else errorNotExpectedToken(token, "")
             "builtInGetFunctionByID"
-                if previous == pif_Nothing
+                if > previous == pif_Nothing
                     then
                         expressionBlock.next!(tokenIndex, "(")
                         id .= expressionBlock.next(tokenIndex)
@@ -1454,38 +1486,38 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                         previous = pif_Operand
                     else errorNotExpectedToken(token, "")
             "("
-                if previous == pif_Nothing
+                if > previous == pif_Nothing
                     then
                         result:expression += expressionBlock.getFunctionExpression(tokenIndex, namedOperands, data, compiledData).toFluid()
                         expressionBlock.next!(tokenIndex, ")")
                         previous = pif_Operand
                     else errorNotExpectedToken(token, "")
             ","; "]"; ")"; "}"; "="
-                if previous == pif_Operand
+                if > previous == pif_Operand
                     then
                         tokenIndex--
                         return
                 errorNotExpectedToken(token, "")
             ":"
-                if previous == pif_Operand
+                if > previous == pif_Operand
                     then
                         result:expression += MutableAccess.toFluid()
                         previous = pif_Access
                     else errorNotExpectedToken(token, "")
             "."
-                if previous == pif_Operand
+                if > previous == pif_Operand
                     then
                         result:expression += ReadOnlyAccess.toFluid()
                         previous = pif_Access
                     else errorNotExpectedToken(token, "")
             "#"
-                if previous == pif_Nothing
+                if > previous == pif_Nothing
                     then
                         result:expression += expressionBlock.getOperandCreator(tokenIndex, namedOperands, data, compiledData).toFluid()
                         previous = pif_Operand
                     else errorNotExpectedToken(token, "")
             "!"
-                if previous == pif_Nothing
+                if > previous == pif_Nothing
                     then result:expression += Operator{operator: token}.toFluid()
                     else errorNotExpectedToken(token, "")
             "["
@@ -1502,39 +1534,39 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                         break
                         result:expression += ReadOnlyAccess.toFluid()
                         result:expression += function.toFluid()
-                    previous == pif_Nothing
+                    > previous == pif_Nothing
                         tokenIndex--
                         result:expression += expressionBlock.getOperandCreator(tokenIndex, namedOperands, data, compiledData).toFluid()
                         previous = pif_Operand
                     default
                         errorNotExpectedToken(token, "")
             "&&"
-                if previous == pif_Operand
+                if > previous == pif_Operand
                     then
                         result:expression += LazyAnd.toFluid()
                         previous = pif_Nothing
                     else errorNotExpectedToken(token, "")
             "||"
-                if previous == pif_Operand
+                if > previous == pif_Operand
                     then
                         result:expression += LazyOr.toFluid()
                         previous = pif_Nothing
                     else errorNotExpectedToken(token, "")
             "*"; "/"; "%"; "+"; "<<"; "<"; "<="; ">>"; ">"; ">="; "=="; "!="; "&"; "^"; "|"; "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; ">>="; "<<="
-                if previous == pif_Operand
+                if > previous == pif_Operand
                     then
                         result:expression += Operator{operator: token}.toFluid()
                         previous = pif_Nothing
                     else errorNotExpectedToken(token, "")
             "++"
-                if previous == pif_Operand
+                if > previous == pif_Operand
                     then
                         result:expression += MutableAccess.toFluid()
                         result:expression += FunctionInExpression{name: token.replaceValue("inc"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{PreviousOperand.toFluid()}}}}.toFluid()
                         return
                 errorNotExpectedToken(token, "")
             "--"
-                if previous == pif_Operand
+                if > previous == pif_Operand
                     then
                         result:expression += MutableAccess.toFluid()
                         result:expression += FunctionInExpression{name: token.replaceValue("dec"), arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{PreviousOperand.toFluid()}}}}.toFluid()
@@ -1562,7 +1594,7 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                 names_types .= namedOperands.getAllNamesAndTypes()
                                 type .= expressionBlock.getOperandType(tokenIndex, names_types.first, false, true)
                                 realType .= type.toRealOperandType(names_types.first, names_types.second)
-                                if realType.empty?()
+                                if < realType.empty?()
                                     then errorWrongType(type.toToken())
                                 functionOperand:arguments += FunctionTypeArgument{mutable: mutable, type: realType[]}
                                 if !expressionBlock.next?(tokenIndex, ",")
@@ -1574,11 +1606,11 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                     else
                         functionOperandCall := FunctionOperandCall
                         variableName .= expressionBlock.getVariableName(tokenIndex, false)
-                        if namedOperand .= namedOperands[variableName[]]; namedOperand.item?()
+                        if namedOperand .= namedOperands[variableName[]]; > namedOperand.item?()
                             then
                                 functionOperandCall:operand = namedOperand[].operand
                                 functionOperandCall:operand:expressionForErrors = variableName
-                                if !functionOperandCall.operand.type.function?()
+                                if < !functionOperandCall.operand.type.function?()
                                     then errorWrongType(variableName.replaceValue(functionOperandCall.operand.type.toToken()[]))
                             else errorNotExist(variableName, "variable")
                         expressionBlock.next!(tokenIndex, "(")
@@ -1611,7 +1643,7 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                 result:expression += token.constBoolToOperand(data, compiledData).toFluid()
                                 previous = pif_Operand
                         break
-                    else if previous != pif_Access
+                    else if < previous != pif_Access
                         then errorNotExpectedToken(token, "")
                 fallthrough
             default
@@ -1619,7 +1651,7 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                     '0'; '1'; '2'; '3'; '4'; '5'; '6'; '7'; '8'; '9'
                         token.integer!(false, true)
                         mutToken := token
-                        if previous == pif_Nothing || previous == pif_Minus
+                        if > previous == pif_Nothing || previous == pif_Minus
                             then
                                 if previous == pif_Minus
                                     then mutToken = minus.replaceValue("-" + mutToken[])
@@ -1654,7 +1686,7 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                                 newOperand:expressionForErrors = operand.expressionForErrors
                                                 newOperand:expressionForErrors:value += token[]
                                                 result:expression:setLast(newOperand.toFluid())
-                                if error
+                                if < error
                                     then errorNotExpectedToken(token, "")
                     39
                         if previous == pif_Nothing
@@ -1672,16 +1704,16 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                                 newOperand:expressionForErrors = operand.expressionForErrors
                                                 newOperand:expressionForErrors:value += token[]
                                                 result:expression:setLast(newOperand.toFluid())
-                                if error
+                                if < error
                                     then errorNotExpectedToken(token, "")
                     'Q'; 'W'; 'E'; 'R'; 'T'; 'Y'; 'U'; 'I'; 'O'; 'P'; 'A'; 'S'; 'D'; 'F'; 'G'; 'H'; 'J'; 'K'; 'L'; 'Z'; 'X'; 'C'; 'V'; 'B'; 'N'; 'M'
-                        if previous == pif_Nothing
+                        if > previous == pif_Nothing
                             then
                                 tokenIndex--
                                 result:expression += expressionBlock.getOperandCreator(tokenIndex, namedOperands, data, compiledData).toFluid()
                             else errorNotExpectedToken(token, "")
                     default
-                        if previous == pif_Nothing || previous == pif_Access
+                        if > previous == pif_Nothing || previous == pif_Access
                             then
                                 nameIndex .= tokenIndex - 1
                                 _ = expressionBlock.next?(tokenIndex, "?", "!")
@@ -1695,7 +1727,7 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                             then
                                                 operand := Operand
                                                 variableName .= expressionBlock.getVariableName(tokenIndex, false)
-                                                if namedOperand .= namedOperands[variableName[]]; namedOperand.item?()
+                                                if namedOperand .= namedOperands[variableName[]]; > namedOperand.item?()
                                                     then
                                                         operand = namedOperand[].operand
                                                         operand:expressionForErrors = variableName
@@ -1735,14 +1767,14 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                                                 operand := namedOperand[].operand
                                                 operand:expressionForErrors = token
                                                 result:expression += operand.toFluid()
-                                            else if enumInt .= data.enums[token[]]; enumInt.item?()
+                                            else if enumInt .= data.enums[token[]]; > enumInt.item?()
                                                 then
                                                     enumStr .= enumInt[].toString()
                                                     result:expression += token.replaceValue(enumStr).constIntToOperand(data, compiledData).toFluid()
                                                 else errorNotExpectedToken(token, "variable")
                             else errorNotExpectedToken(token, "")
                 previous = pif_Operand
-    if previous == pif_Nothing || previous == pif_Access || previous == pif_Minus
+    if < previous == pif_Nothing || previous == pif_Access || previous == pif_Minus
         then
             tokenIndex--
             errorNotExpectedToken(expressionBlock.line[tokenIndex], "")
@@ -1756,7 +1788,7 @@ func getOperandCreator(expressionBlock, :tokenIndex, namedOperands, data, :compi
     names_types .= namedOperands.getAllNamesAndTypes()
     result:type = expressionBlock.getOperandType(tokenIndex, names_types.first, false, true)
     realType .= result.type.toRealOperandType(names_types.first, names_types.second)
-    if realType.empty?()
+    if < realType.empty?()
         then errorWrongType(result.type.toToken())
     result:type = realType[]
     compiledType .= result.type.compile(data, compiledData)
@@ -1767,7 +1799,7 @@ func getOperandCreator(expressionBlock, :tokenIndex, namedOperands, data, :compi
                 if !isSlice
                     then
                         argumentName .= expressionBlock.getTypeMemberName(tokenIndex)
-                        if compiledType.members[argumentName[]].empty?()
+                        if < compiledType.members[argumentName[]].empty?()
                             then errorNotExist(argumentName, "type member")
                         expressionBlock.next!(tokenIndex, ":")
                         result:membersNames += argumentName[]
@@ -1797,17 +1829,19 @@ func toCSwitch(suffixes, prefix, items, allVariants)
     result += "\t}\n"
 
 func getFlagName(block, :tokenIndex)
+    attributes
+        alwaysInline
     rules
         final = block == Block & tokenIndex == UInt64
         result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
-    if nameCorrect
+    if > nameCorrect
         then
             parse _, char <- result[].getAllExceptFirst()
                 nameCorrect = nameCorrect && (char.letter?() || char.digit?() || char == '_')
             nameCorrect = nameCorrect && !result[].contain?("__")
-    if nameCorrect
-        then nameCorrect = !result[].hasPrefix?("builtIn")
-    if !nameCorrect
+            if > nameCorrect
+                then nameCorrect = !result[].hasPrefix?("builtIn")
+    if < !nameCorrect
         then errorWrongName(result, "flag")

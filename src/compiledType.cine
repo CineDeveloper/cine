@@ -24,7 +24,7 @@ proc executeGlobalRules(:compiledType, type, data, :compiledData)
                     then
                         currentRule.next(tokenIndex).integer!(false, false)
                         register .= UInt64.fromString(currentRule.line[1][])[]
-                        if register >= registerNumber
+                        if < register >= registerNumber
                             then errorNotExpectedToken(currentRule.line[1], "")
                         group .= currentRule.next(tokenIndex)
                         data.groupExist!(group)

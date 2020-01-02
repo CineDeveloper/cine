@@ -17,6 +17,8 @@ type RuleFunctionArgument
     argument Token
 
 func getItem(ruleExpression)
+    attributes
+        alwaysInline
     rules
         final = ruleExpression == RuleExpression
         result = [Fluid]
@@ -40,7 +42,7 @@ func compile(expression, registers, currentRegisterIndex, data, argumentsNames, 
                     if expression[].getLength() == 1
                         then
                             registerIndexToken .= expressionItem[RuleRegisterIndex].index
-                            if registerIndex .= UInt64.fromString(registerIndexToken[])[]; registerIndex <= currentRegisterIndex
+                            if registerIndex .= UInt64.fromString(registerIndexToken[])[]; > registerIndex <= currentRegisterIndex
                                 then return Box(Bool).create(registers[registerIndex])
                             errorNotExpectedToken(registerIndexToken, "")
                 RuleOperator

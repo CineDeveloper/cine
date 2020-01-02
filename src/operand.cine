@@ -38,6 +38,8 @@ func getMainObjectName(operand)
             result = operand.value.getSlice(beginIndex, endEdge)
 
 func createNewRegister(:registersCount, mutable, cType, value)
+    attributes
+        alwaysInline
     rules
         final = registersCount == UInt64 & mutable == Bool & cType == [UInt8] & value == [UInt8]
         result = Pair([UInt8], [UInt8])
@@ -61,6 +63,8 @@ func freeOperands(:tmpOperands, :registersCount, :waitingFunctions, data, :compi
             tmpOperands = #tmpOperands
 
 func toOperandsTypes(operands)
+    attributes
+        alwaysInline
     rules
         final = operands == [Operand]
         result = [OperandType]
@@ -171,9 +175,9 @@ func setOperand(destionation, source, :registersCount, :waitingFunctions, data, 
         2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
         final = 1 & 2
         result = [UInt8]
-    if !destionation.mutable
+    if < !destionation.mutable
         then errorExpectMutable(destionation.expressionForErrors)
-    if destionation.type != source.type
+    if < destionation.type != source.type
         then errorWrongType(source.expressionForErrors.replaceValue(source.type.toToken()[]))
     if destionation.haveLink
         then

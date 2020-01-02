@@ -3,6 +3,8 @@ type Token
     line, row, fileIndex UInt64
 
 func getItem(token)
+    attributes
+        alwaysInline
     rules
         final = token == Token
         result = [UInt8]
@@ -15,27 +17,31 @@ func coordinatesToString(token)
     result = "File: ".join(token.file, ", line: ", (token.line + 1).toString(), ", row: ", (token.row + 1).toString(), ". ")
 
 proc enumName!(name)
+    attributes
+        alwaysInline
     rules
         final = name == Token
     nameCorrect := name[][0].lower?() && name[].contain?('_')
-    if nameCorrect
+    if > nameCorrect
         then
             parse _, char <- name[].getAllExceptFirst()
                 nameCorrect = nameCorrect && char.fromName?()
             nameCorrect = nameCorrect && !name[].contain?("__")
-    if !nameCorrect
+    if < !nameCorrect
         then errorWrongName(name, "enum")
 
 proc groupName!(name)
+    attributes
+        alwaysInline
     rules
         final = name == Token
     nameCorrect := name[][0].upper?()
-    if nameCorrect
+    if > nameCorrect
         then
             parse _, char <- name[].getAllExceptFirst()
                 nameCorrect = nameCorrect && char.fromName?()
             nameCorrect = nameCorrect && !name[].contain?("__")
-    if !nameCorrect
+    if < !nameCorrect
         then errorWrongName(name, "group")
 
 func replaceValue(token, value)
@@ -46,12 +52,16 @@ func replaceValue(token, value)
     result:value = value
 
 proc integer!(integer, allowNegative, allowNotDecimal)
+    attributes
+        alwaysInline
     rules
         final = integer == Token & allowNegative == Bool & allowNotDecimal == Bool
-    if !integer?(integer[], allowNegative, allowNotDecimal)
+    if < !integer?(integer[], allowNegative, allowNotDecimal)
         then errorNotExpectedToken(integer, "")
 
 func integer?(integer, allowNegative, allowNotDecimal)
+    attributes
+        alwaysInline
     rules
         final = integer == [UInt8] & allowNegative == Bool & allowNotDecimal == Bool
         result = Bool
@@ -74,6 +84,8 @@ func integer?(integer, allowNegative, allowNotDecimal)
                     then break
 
 proc float!(arg)
+    attributes
+        alwaysInline
     rules
         final = arg == Token
     mutValue := arg[]
@@ -81,11 +93,11 @@ proc float!(arg)
         then mutValue = mutValue.getAllExceptFirst()
     parts .= mutValue.split('.')
     error := false
-    if parts.getLength() == 2
+    if > parts.getLength() == 2
         then parse _, part <- parts
             parse _, char <- part
-                if error = !char.digit?(); error
+                if error = !char.digit?(); < error
                     then break all
         else error = true
-    if error
+    if < error
         then errorIncorrectFloat(arg)

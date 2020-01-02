@@ -1,4 +1,6 @@
 func fromName?(char)
+    attributes
+        alwaysInline
     rules
         final = char == UInt8
         result = Bool

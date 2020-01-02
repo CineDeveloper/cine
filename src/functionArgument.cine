@@ -3,6 +3,8 @@ type FunctionArgument
     mutable Bool
 
 func toStrings(arguments)
+    attributes
+        alwaysInline
     rules
         final = arguments == [FunctionArgument]
         result = [[UInt8]]
