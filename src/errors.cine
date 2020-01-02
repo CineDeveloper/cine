@@ -152,3 +152,15 @@ proc errorCantWriteToFile(file)
         final = file == [UInt8]
     print("It is not possible to write to the file \042", file, "\042.\n")
     exit()
+
+proc errorInvalidNumberOfArguments(coordinates)
+    rules
+        final = coordinates == Token
+    print(coordinates.coordinatesToString(), "Invalid number of arguments.")
+    exit()
+
+proc errorWrongArguments(coordinates)
+    rules
+        final = coordinates == Token
+    print(coordinates.coordinatesToString(), "Arguments do not match the function.")
+    exit()

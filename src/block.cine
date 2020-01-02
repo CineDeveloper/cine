@@ -52,6 +52,13 @@ func toFunction(block)
                 parse _, cLib <- subBlock.line.getAllExceptFirst()
                     result:cLibs += cLib[]
                 bodyIndex++
+            "attributes"
+                if subBlock.line.getLength() == 1
+                    then
+                        subBlock.subBlocks!()
+                        result:attributes = subBlock.subBlocks.getFunctionAttributes()
+                        bodyIndex++
+                    else break all
             default
                 break all
     result:body = body.getAllExceptFirstN(bodyIndex)
@@ -1409,6 +1416,41 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
                 if previous == pif_Nothing
                     then
                         result:expression += token.replaceValue(UInt64.maxValue().random().toString()).constIntToOperand(data, compiledData).toFluid()
+                        previous = pif_Operand
+                    else errorNotExpectedToken(token, "")
+            "builtInCallFunctionByID"
+                if previous == pif_Nothing
+                    then
+                        expressionBlock.next!(tokenIndex, "(")
+                        id .= expressionBlock.next(tokenIndex)
+                        tokenIndex--
+                        _ = expressionBlock.getString(tokenIndex)
+                        functionCall := BuiltInCallFunctionByID{id: id}
+                        if !expressionBlock.next?(tokenIndex, ")")
+                            then
+                                expressionBlock.next!(tokenIndex, ",")
+                                for
+                                    functionCall:arguments += expressionBlock.getFunctionExpression(tokenIndex, namedOperands, data, compiledData)
+                                    if !expressionBlock.next?(tokenIndex, ",")
+                                        then
+                                            expressionBlock.next!(tokenIndex, ")")
+                                            break
+                        result:expression += functionCall.toFluid()
+                        previous = pif_Operand
+                    else errorNotExpectedToken(token, "")
+            "builtInGetFunctionByID"
+                if previous == pif_Nothing
+                    then
+                        expressionBlock.next!(tokenIndex, "(")
+                        id .= expressionBlock.next(tokenIndex)
+                        tokenIndex--
+                        _ = expressionBlock.getString(tokenIndex)
+                        expressionBlock.next!(tokenIndex, ",")
+                        function .= BuiltInGetFunctionByID {id: id, type: expressionBlock.getOperandType(tokenIndex, namedOperands.getAllNamesAndTypes().first, false, false)}
+                        expressionBlock.next!(tokenIndex, ")")
+                        if !function.type.function?()
+                            then errorWrongType(function.type.toToken())
+                        result:expression += function.toFluid()
                         previous = pif_Operand
                     else errorNotExpectedToken(token, "")
             "("

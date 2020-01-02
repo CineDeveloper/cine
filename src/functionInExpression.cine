@@ -15,6 +15,8 @@ func toOperand(functionInExpression, :registersCount, :waitingFunctions, haveRes
         result:first += code_argumentOperand.first
         arguments:setItem(argumentIndex, code_argumentOperand.second)
     function .= data.getFunction(functionInExpression.name, arguments, haveResult, compiledData)
+    if function.attributes.deprecated
+        then warningUsingDeprecated(functionInExpression.name)
     parse index, argument <- function.arguments
         realArgument .= arguments[index]
         if argument.mutable

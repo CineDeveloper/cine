@@ -52,6 +52,14 @@ type FunctionOperandCall
     operand Operand
     arguments [FunctionExpression]
 
+type BuiltInCallFunctionByID
+    id Token
+    arguments [FunctionExpression]
+
+type BuiltInGetFunctionByID
+    id Token
+    type OperandType
+
 func getItem(functionExpression)
     rules
         final = functionExpression == FunctionExpression
@@ -381,6 +389,8 @@ func compute0PriorityOperations(expression, :registersCount, :waitingFunctions, 
                     then expressionForErrors:value = expressionForErrors[].getAllExceptLastN(2)
                 expressionForErrors:value += ")"
                 function .= data.getFunction(functionOperand.functionName, fakeArguments, functionOperand.haveResult, compiledData)
+                if function.attributes.deprecated
+                    then warningUsingDeprecated(functionOperand.functionName)
                 parse fakeIndex, argument <- function.arguments
                     if argument.mutable != fakeArguments[fakeIndex].mutable
                         then errorFunctionNotExist(functionOperand.functionName, functionOperand.haveResult, fakeArguments)
@@ -405,7 +415,7 @@ func compute0PriorityOperations(expression, :registersCount, :waitingFunctions, 
                 functionOperandCall .= expressionPart[FunctionOperandCall]
                 expressionForErrors := functionOperandCall.operand.expressionForErrors
                 if functionOperandCall.arguments.getLength() != functionOperandCall.operand.type.functionType.arguments.getLength() || (functionOperandCall.operand.type.functionType.result.getLength() == 1) != haveResult
-                    then errorNotExpectedToken(functionOperandCall.operand.expressionForErrors, "")
+                    then errorInvalidNumberOfArguments(expressionForErrors)
                 arguments := [Operand].init(functionOperandCall.arguments.getLength())
                 parse argumentIndex, argumentExpression <- functionOperandCall.arguments
                     code_operand .= argumentExpression.compile(registersCount, waitingFunctions, data, compiledData, true, functionOperandCall.operand.type.functionType.arguments[argumentIndex].type, tmpOperands)
@@ -417,6 +427,15 @@ func compute0PriorityOperations(expression, :registersCount, :waitingFunctions, 
                         else if operand.mutable
                             then operand = operand.toReadOnly()
                     arguments:setItem(argumentIndex, operand)
+                parse index1, argument1 <- arguments
+                    if argument1.mutable
+                        then parse index2, argument2 <- arguments
+                            if index1 != index2
+                                then
+                                    mainObject1 .= argument1.getMainObjectName()
+                                    mainObject2 .= argument2.getMainObjectName()
+                                    if mainObject1 != "" && mainObject1 == mainObject2
+                                        then errorSeveralVariableToFunction(argument1.expressionForErrors, argument2.expressionForErrors)
                 functionCall := functionOperandCall.operand.toReadOnly().value + '('
                 expressionForErrors:value += '('
                 if arguments.getLength() != 0
@@ -443,7 +462,102 @@ func compute0PriorityOperations(expression, :registersCount, :waitingFunctions, 
                             haveLink: compiledResultType.haveLink}
                         }
                     else code:join("\t", functionCall, ";\n")
+                tmpOperands:put(resultOperand)
                 result:put(Pair([UInt8], Operand).create(code, resultOperand))
+                return
+            BuiltInCallFunctionByID
+                functionIDAndArguments .= expressionPart[BuiltInCallFunctionByID]
+                code := ""
+                resultOperand := Operand
+                functionBox .= data.functionsByID[functionIDAndArguments.id[]]
+                if functionBox.empty?()
+                    then errorNotExist(functionIDAndArguments.id, "function id")
+                function .= functionBox[]
+                if function.attributes.deprecated
+                    then warningUsingDeprecated(functionIDAndArguments.id.replaceValue(function.name[]))
+                if function.arguments.getLength() != functionIDAndArguments.arguments.getLength()
+                    then errorInvalidNumberOfArguments(functionIDAndArguments.id)
+                arguments := [Operand].init(functionIDAndArguments.arguments.getLength())
+                parse argumentIndex, argument <- functionIDAndArguments.arguments
+                    code_operand .= argument.compile(registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+                    code += code_operand.first
+                    operand := code_operand.second
+                    if function.arguments[argumentIndex].mutable
+                        then if !operand.mutable
+                            then errorExpectMutable(operand.expressionForErrors)
+                        else if operand.mutable
+                            then operand = operand.toReadOnly()
+                    arguments:setItem(argumentIndex, operand)
+                parse index1, argument1 <- arguments
+                    if argument1.mutable
+                        then parse index2, argument2 <- arguments
+                            if index1 != index2
+                                then
+                                    mainObject1 .= argument1.getMainObjectName()
+                                    mainObject2 .= argument2.getMainObjectName()
+                                    if mainObject1 != "" && mainObject1 == mainObject2
+                                        then errorSeveralVariableToFunction(argument1.expressionForErrors, argument2.expressionForErrors)
+                if !function.finalRuleTrue?(data, arguments.toOperandsTypes(), compiledData)
+                    then errorWrongArguments(functionIDAndArguments.id)
+                precompiledFunction .= function.precompile(data, arguments, compiledData)
+                waitingFunctions += Pair(Function, [Operand]).create(function, arguments)
+                cFunctionCall := precompiledFunction.cName + '('
+                if arguments.getLength() != 0
+                    then
+                        parse _, argument <- arguments
+                            cFunctionCall:join(argument.value, ", ")
+                        cFunctionCall = cFunctionCall.getAllExceptLastN(2)
+                cFunctionCall += ')'
+                if function.isFunction
+                    then
+                        resultType .= precompiledFunction.type.result[0]
+                        compiledResultType .= resultType.compile(data, compiledData)
+                        code_register .= registersCount:createNewRegister(false, compiledResultType.cType, cFunctionCall)
+                        code += code_register.first
+                        resultOperand = Operand{value: code_register.second, cType: compiledResultType.cType, type: resultType, typeNumber: compiledResultType.typeNumber, haveLink:compiledResultType.haveLink}
+                        resultOperand:expressionForErrors = functionIDAndArguments.id.replaceValue("builtInCallFunctionByID(\042".join(functionIDAndArguments.id[], "\042, "))
+                        if arguments.getLength() != 0
+                            then
+                                parse _, argument <- arguments
+                                    resultOperand:expressionForErrors:value:join(argument.expressionForErrors.value, ", ")
+                                resultOperand:expressionForErrors:value = resultOperand.expressionForErrors[].getAllExceptLastN(2)
+                        resultOperand:expressionForErrors:value += ')'
+                    else code:join("\t", cFunctionCall, ";\n")
+                tmpOperands:put(resultOperand)
+                result:put(Pair([UInt8], Operand).create(code, resultOperand))
+                return
+            BuiltInGetFunctionByID
+                functionIDAndType .= expressionPart[BuiltInGetFunctionByID]
+                functionBox .= data.functionsByID[functionIDAndType.id[]]
+                if functionBox.empty?()
+                    then errorNotExist(functionIDAndType.id, "function id")
+                function .= functionBox[]
+                if function.attributes.deprecated
+                    then warningUsingDeprecated(functionIDAndType.id.replaceValue(function.name[]))
+                if function.arguments.getLength() != functionIDAndType.type.functionType.arguments.getLength()
+                    then errorInvalidNumberOfArguments(functionIDAndType.id)
+                fakeArguments := [Operand].init(function.arguments.getLength())
+                parse argumentIndex, argument <- functionIDAndType.type.functionType.arguments
+                    compiledArgumentType .= argument.type.compile(data, compiledData)
+                    fakeArguments:setItem(argumentIndex, Operand{type: argument.type, mutable: argument.mutable, cType: compiledArgumentType.cType, typeNumber:compiledArgumentType.typeNumber, haveLink:compiledArgumentType.haveLink})
+                if !function.finalRuleTrue?(data, fakeArguments.toOperandsTypes(), compiledData)
+                    then errorWrongArguments(functionIDAndType.id)
+                precompiledFunction .= function.precompile(data, fakeArguments, compiledData)
+                waitingFunctions += Pair(Function, [Operand]).create(function, fakeArguments)
+                resultOperandType .= OperandType{baseType: Token{value: "@"}, functionType: precompiledFunction.type}
+                if functionIDAndType.type != resultOperandType
+                    then errorWrongType(functionIDAndType.type.toToken())
+                compiledResultOperandType .= resultOperandType.compile(data, compiledData)
+                resultOperand .= Operand{{
+                    value: "&" + precompiledFunction.cName,
+                    cType: compiledResultOperandType.cType,
+                    expressionForErrors: functionIDAndType.id.replaceValue("builtInGetFunctionByID(\042".join(functionIDAndType.id[], "\042, ", functionIDAndType.type.toToken()[],  ")")),
+                    type: resultOperandType,
+                    typeNumber: compiledResultOperandType.typeNumber,
+                    haveLink: compiledResultOperandType.haveLink}
+                }
+                tmpOperands:put(resultOperand)
+                result:put(Pair([UInt8], Operand).create("", resultOperand))
                 return
 
 func compute1PriorityOperations(expression, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tmpOperands)

@@ -1,6 +1,7 @@
 type Data
     types Map([UInt8], Type)
     functions Map([UInt8], [Map(UInt8, [Function])])
+    functionsByID Map([UInt8], Function)
     groups Set([UInt8])
     enums Map([UInt8], UInt32)
     globalRules [[Block]]
@@ -80,6 +81,11 @@ proc add(:data, function)
     functionsWithPriority:add(argumentsID, functionsWithArgID)
     functionsWithName:setItem(priority, functionsWithPriority)
     data:functions:add(function.name[], functionsWithName)
+    if id .= function.attributes.id[]; id != ""
+        then
+            if data.functionsByID[id].item?()
+                then errorAlreadyExist(function.attributes.id, "function id")
+            data:functionsByID:add(id, function)
 
 proc add(:data, type)
     rules

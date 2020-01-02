@@ -68,3 +68,42 @@ func getFlags(blocks)
         description .= block.getString(tokenIndex)
         block.eol!(tokenIndex)
         result += Pair(Token, [UInt8]).create(name, description)
+
+func getFunctionAttributes(attributes)
+    rules
+        final = attributes == [Block]
+        result = FunctionAttributes
+    parse _, attributeBlock <- attributes
+        attributeBlock.noSubBlocks!()
+        tokenIndex := 0
+        attribute .= attributeBlock.next(tokenIndex)
+        case attribute[] of
+            "deprecated"
+                if result.deprecated
+                    then errorAlreadyExist(attribute, "function attribute")
+                result:deprecated = true
+            "alwaysInline"
+                if result.alwaysInline
+                    then errorAlreadyExist(attribute, "function attribute")
+                if result.noInline
+                    then errorNotExpectedToken(attribute, "")
+                result:alwaysInline = true
+            "noInline"
+                if result.noInline
+                    then errorAlreadyExist(attribute, "function attribute")
+                if result.alwaysInline
+                    then errorNotExpectedToken(attribute, "")
+                result:noInline = true
+            "id"
+                if result.id[] != ""
+                    then errorAlreadyExist(attribute, "function attribute")
+                attributeBlock.next!(tokenIndex, "=")
+                id .= attributeBlock.next(tokenIndex)
+                tokenIndex--
+                _ = attributeBlock.getString(tokenIndex)
+                if id[] == ""
+                    then errorNotExpectedToken(id, "")
+                result:id =id
+            default
+                errorNotExpectedToken(attribute, "")
+        attributeBlock.eol!(tokenIndex)

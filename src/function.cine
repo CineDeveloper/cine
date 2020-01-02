@@ -1,6 +1,7 @@
 type Function
     name Token
     arguments [FunctionArgument]
+    attributes FunctionAttributes
     rules, body [Block]
     cLibs [[UInt8]]
     priority UInt8
@@ -51,7 +52,9 @@ proc compile(function, data, arguments, :waitingFunctions, :compiledData)
     if compilingFunction.fullCompiled
         then return
     compilingFunction:fullCompiled = true
-    functionSignature := "static inline "
+    functionSignature := "static "
+    if !(function.attributes.noInline || function.attributes.alwaysInline)
+        then functionSignature += "inline "
     resultType := CompiledType
     if compilingFunction.type.result.getLength() == 0
         then functionSignature += "void "
@@ -67,6 +70,11 @@ proc compile(function, data, arguments, :waitingFunctions, :compiledData)
     if functionSignature.getLast() == ' '
         then functionSignature = functionSignature.getAllExceptLastN(2)
     functionSignature += ')'
+    mif
+        function.attributes.alwaysInline
+            functionSignature += " __attribute__((always_inline))"
+        function.attributes.noInline
+            functionSignature += " __attribute__((noinline))"
     compiledData:cFunctionSignatures:join(functionSignature, ";\n")
     compiledData:cFunctions:join(functionSignature, " {\n")
     namedOperands := compilingFunction.getNamedOperands(arguments, resultType)
