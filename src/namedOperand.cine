@@ -41,3 +41,17 @@ func getAllNamesAndTypes(namedOperands)
     parse name, namedOperand <- namedOperands
         result:first += name
         result:second += namedOperand.operand.type
+
+proc addNewOperand(:namedOperands, name, operand, level)
+    rules
+        1 = namedOperands == Map([UInt8], NamedOperand) & name == Token
+        2 = operand == Operand & level == UInt64
+        final = 1 & 2
+    if < namedOperands[name[]].item?()
+        then errorAlreadyExist(name, "variable")
+        else namedOperands:add(name[], NamedOperand{level: level, operand: operand})
+
+proc addHidenOperand(:namedOperands, operand, level)
+    rules
+        final = namedOperands == Map([UInt8], NamedOperand) & operand == Operand & level == UInt64
+    namedOperands:add("__ho_" + operand.expressionForErrors.getUniqID(), NamedOperand{level: level, operand: operand})

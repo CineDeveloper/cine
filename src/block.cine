@@ -1151,10 +1151,11 @@ func compileParse(parseBlock, currentLevel, :namedOperands, :registersCount, :br
     code_parsedOperand .= parseBlock.compileSimpleExpression(namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType, tmpOperands)
     parseBlock.eol!(tokenIndex)
     result = "\t{\n" + code_parsedOperand.first
-    needToFree := false
-    if needToFree = tmpOperands[code_parsedOperand.second.value].item?(); needToFree
-        then tmpOperands -= code_parsedOperand.second.value
     parsedOperand .= code_parsedOperand.second.toReadOnly()
+    if tmpOperands[parsedOperand.value].item?()
+        then
+            tmpOperands -= parsedOperand.value
+            namedOperands:addHidenOperand(parsedOperand, currentLevel + 1)
     result += tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData)
     breakCounter++
     continueCounter++
@@ -1166,6 +1167,7 @@ func compileParse(parseBlock, currentLevel, :namedOperands, :registersCount, :br
     result:join(code_firstIndexOperand.first, code_hiddenIndexName.first)
     hiddenIndexOperand := code_firstIndexOperand.second
     hiddenIndexOperand:value = code_hiddenIndexName.second
+    namedOperands:addHidenOperand(hiddenIndexOperand, currentLevel + 1)
     code_nextIndexOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_next"),{
         arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
         .toOperand(registersCount, waitingFunctions, true, data, compiledData)
@@ -1190,10 +1192,7 @@ func compileParse(parseBlock, currentLevel, :namedOperands, :registersCount, :br
             keyOperand := code_keyOperand.second
             result:join(code_keyOperand.first, "\t", keyOperand.cType, " const ", keyName[], "_ = ", keyOperand.value, ";\n")
             keyOperand:value = keyName[] + '_'
-            keyNamedOperandBox .= namedOperands[keyName[]]
-            if > keyNamedOperandBox.empty?()
-                then namedOperands:add(keyName[], NamedOperand{level: currentLevel + 1, operand: keyOperand})
-                else errorAlreadyExist(keyName, "variable")
+            namedOperands:addNewOperand(keyName, code_keyOperand.second, currentLevel + 2)
     if itemName[] != ""
         then
             code_itemOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_item"),{
@@ -1203,19 +1202,14 @@ func compileParse(parseBlock, currentLevel, :namedOperands, :registersCount, :br
             itemOperand := code_itemOperand.second
             result:join(code_itemOperand.first, "\t", itemOperand.cType, " const ", itemName[], "_ = ", itemOperand.value, ";\n")
             itemOperand:value = itemName[] + '_'
-            itemNamedOperandBox .= namedOperands[itemName[]]
-            if > itemNamedOperandBox.empty?()
-                then namedOperands:add(itemName[], NamedOperand{level: currentLevel + 1, operand: itemOperand})
-                else errorAlreadyExist(itemName, "variable")
+            namedOperands:addNewOperand(itemName, code_itemOperand.second, currentLevel + 2)
     parse _, functionExpression <- parseBlock.subBlocks
         result += functionExpression.compile(currentLevel + 2, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
     result:join({
-        namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData),
+        namedOperands:deleteLevel(currentLevel + 2, registersCount, waitingFunctions, data, compiledData),
         "\t}\n",
-        hiddenIndexOperand.freeOperand(registersCount, waitingFunctions, data, compiledData))
+        namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData))
     }
-    if needToFree
-        then result += parsedOperand.freeOperand(registersCount, waitingFunctions, data, compiledData)
     breakCounter--
     continueCounter--
     if breakCounter != 0
@@ -1321,8 +1315,6 @@ func compileNewVariableExpression(newVariableBlock, currentLevel, :namedOperands
                 operand = operand.toReadOnly()
                 result += operand.useOperand(registersCount, waitingFunctions, data, compiledData)
     result += tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData)
-    if < namedOperands[variableName[]].item?()
-        then errorAlreadyExist(variableName, "variable")
     if mutable
         then
             if operand.cType.getLast() == '*'
@@ -1336,7 +1328,7 @@ func compileNewVariableExpression(newVariableBlock, currentLevel, :namedOperands
                 then result:join("\t", operand.cType, " const ", variableName[], "_ = (const ", operand.cType, ")(", operand.value, ");\n")
                 else result:join("\t", operand.cType, " const ", variableName[], "_ = ", operand.value, ";\n")
             operand:value = variableName[] + '_'
-    namedOperands:add(variableName[], NamedOperand{level: currentLevel, operand: operand})
+    namedOperands:addNewOperand(variableName, operand, currentLevel)
 
 func getVariableName(block, :tokenIndex, fullCheck)
     attributes

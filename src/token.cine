@@ -101,3 +101,9 @@ proc float!(arg)
         else error = true
     if < error
         then errorIncorrectFloat(arg)
+
+func getUniqID(token)
+    rules
+        final = token == Token
+        result = [UInt8]
+    result = token.fileIndex.toString().join("_", token.line.toString(), "_", token.row.toString())
