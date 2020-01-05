@@ -117,7 +117,7 @@ func getCName(function, arguments)
             result += '0'
     parse _, argument <- arguments
         result:join("__", argument.typeNumber.toString(), "__", select(argument.mutable, "t", "f"))
-    result:join("__", function.priority.toString())
+    result:join("__", function.priority.toString(), "__", function.name.getUniqID())
 
 func finalRuleTrue?(function, data, argumentsTypes, :compiledData)
     rules
