@@ -14,8 +14,8 @@ func getNamedOperands(compilingFunction, arguments, resultType)
         mutArgument:value = argumentName + '_'
         mutArgument:constant = false
         mutArgument:expressionForErrors = Token
-        result:add(argumentName, NamedOperand{level: 0, operand:mutArgument})
+        result:addNewOperand(Token{value:argumentName}, mutArgument, 0)
     if compilingFunction.type.result.getLength() == 1
         then
             resultOperand .= Operand{value: "&result_", cType: resultType.cType, type: compilingFunction.type.result[0], typeNumber: resultType.typeNumber, haveLink:resultType.haveLink, mutable: true}
-            result:add("result", NamedOperand{level: 0, operand: resultOperand})
+            result:addNewOperand(Token{value:"result"}, resultOperand, 0)

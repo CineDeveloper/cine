@@ -29,13 +29,17 @@ func toFunction(block)
         then
             result:arguments = block.getFunctionArguments(tokenIndex)
             block.next!(tokenIndex, ")")
+    result:priority = 4.convertTo(UInt8)
     if tokenIndex < block.line.getLength()
         then
+            if block.next?(tokenIndex, "#")
+                then tokenIndex--
+                else if result.isFunction
+                    then result:resultType = block.getOperandType(tokenIndex, result.arguments.toStrings(), false, true)
             if block.next?(tokenIndex, "#")
                 then if priority .= block.next(tokenIndex); priority[].getLength() == 1 && priority[][0].digit?() && priority[][0] != '0'
                     then result:priority = priority[][0] - '1'
             block.eol!(tokenIndex)
-        else result:priority = 4.convertTo(UInt8)
     body := block.subBlocks
     bodyIndex := 0
     for bodyIndex != body.getLength()
@@ -385,13 +389,25 @@ func getFunctionArguments(block, :tokenIndex)
     rules
         final = block == Block & tokenIndex == UInt64
         result = [FunctionArgument]
+    argumentsNames := [[UInt8]]
     for
         mutable .= block.next?(tokenIndex, ":")
         name .= block.getFunctionArgumentName(tokenIndex, true)
         parse _, existedArgument <- result
             if < existedArgument.name == name[]
                 then errorAlreadyExist(name, "function argument")
-        result += FunctionArgument{name: name[], mutable:mutable}
+        type := OperandType
+        mif
+            block.next?(tokenIndex, ",", ")")
+                tokenIndex--
+            block.next?(tokenIndex, ">")
+                groupName .= block.next(tokenIndex)
+                groupName!(groupName)
+                type:baseType = groupName.replaceValue(">" + groupName[])
+            default
+                type = block.getOperandType(tokenIndex, argumentsNames, true, true)
+        result += FunctionArgument{name: name[], mutable:mutable, type: type}
+        argumentsNames += name[]
         if !block.next?(tokenIndex, ",")
             then break
 

@@ -1,5 +1,6 @@
 type FunctionArgument
     name [UInt8]
+    type OperandType
     mutable Bool
 
 func toStrings(arguments)

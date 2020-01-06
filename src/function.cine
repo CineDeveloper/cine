@@ -1,6 +1,7 @@
 type Function
     name Token
     arguments [FunctionArgument]
+    resultType OperandType
     attributes FunctionAttributes
     rules, body [Block]
     cLibs [[UInt8]]
@@ -33,10 +34,14 @@ func precompile(function, data, arguments, :compiledData)
                 result:argumentsNames:setItem(argumentIndex, functionArgument.name)
             if function.isFunction
                 then
-                    resultBlock .= function.rules.getLast()
-                    tokenIndex := 1
-                    resultBlock.next!(tokenIndex, "=")
-                    resultType .= resultBlock.getOperandType(tokenIndex, result.argumentsNames, false, true)
+                    resultType := OperandType
+                    if function.resultType.empty?()
+                        then
+                            resultBlock .= function.rules.getLast()
+                            tokenIndex := 1
+                            resultBlock.next!(tokenIndex, "=")
+                            resultType = resultBlock.getOperandType(tokenIndex, result.argumentsNames, false, true)
+                        else resultType = function.resultType
                     realResultType .= resultType.toRealOperandType(result.argumentsNames, result.type.arguments.toOperandsTypes())
                     if < realResultType.empty?()
                         then errorWrongType(resultType.toToken())
@@ -126,34 +131,53 @@ func finalRuleTrue?(function, data, argumentsTypes, :compiledData)
     finalRuleIndex := 0
     if function.isFunction
         then
-            if < function.rules.getLength() == 0 || function.rules.getLast().line[0][] != "result"
+            if < !((function.rules.getLength() != 0 && function.rules.getLast().line[0][] == "result") || !function.resultType.empty?())
                 then errorNotResultType(function.name)
-            if function.rules.getLength() == 1
-                then return true
-            finalRuleIndex = function.rules.getLength() - 2
+            if function.rules.getLength() != 0 && function.rules.getLast().line[0][] == "result" && !function.resultType.empty?()
+                then errorAlreadyExist(function.rules.getLast().line[0], "result type")
+            if function.rules.getLength() == select(function.resultType.empty?(), 1, 0)
+                then result = true
+                else finalRuleIndex = function.rules.getLength() - select(function.resultType.empty?(), 2, 1)
         else if function.rules.getLength() == 0
-            then return true
+            then result = true
             else finalRuleIndex = function.rules.getLength() - 1
-    registers := [Bool].init(finalRuleIndex + 1)
-    registers:setFirst(true)
-    argumentsNames .= function.arguments.toStrings()
-    for registerIndex := 1; registerIndex <= finalRuleIndex; registerIndex++
-        currentRule .= function.rules[registerIndex - 1]
-        currentRule.noSubBlocks!()
-        tokenIndex := 0
-        currentRule.next!(tokenIndex, registerIndex.toString())
-        currentRule.next!(tokenIndex, "=")
-        expression .= currentRule.getRuleExpression(tokenIndex, argumentsNames, data)
-        register .= expression.compile(registers, registerIndex, data, argumentsNames, argumentsTypes, compiledData)
-        if register.item?()
-            then registers:setItem(registerIndex, register[])
-            else return false
-        currentRule.eol!(tokenIndex)
-    finalRule .= function.rules[finalRuleIndex]
-    finalRule.noSubBlocks!()
-    tokenIndex := 0
-    finalRule.next!(tokenIndex, "final")
-    finalRule.next!(tokenIndex, "=")
-    expression .= finalRule.getRuleExpression(tokenIndex, argumentsNames, data)
-    finalRegister .= expression.compile(registers, finalRuleIndex + 1, data, argumentsNames, argumentsTypes, compiledData)
-    result = finalRegister == Box(Bool).create(true)
+    if !result
+        then
+            result = true
+            registers := [Bool].init(finalRuleIndex + 1)
+            registers:setFirst(true)
+            argumentsNames .= function.arguments.toStrings()
+            for registerIndex := 1; registerIndex <= finalRuleIndex; registerIndex++
+                currentRule .= function.rules[registerIndex - 1]
+                currentRule.noSubBlocks!()
+                tokenIndex := 0
+                currentRule.next!(tokenIndex, registerIndex.toString())
+                currentRule.next!(tokenIndex, "=")
+                expression .= currentRule.getRuleExpression(tokenIndex, argumentsNames, data)
+                register .= expression.compile(registers, registerIndex, data, argumentsNames, argumentsTypes, compiledData)
+                if register.item?()
+                    then registers:setItem(registerIndex, register[])
+                    else result = false
+                currentRule.eol!(tokenIndex)
+            finalRule .= function.rules[finalRuleIndex]
+            finalRule.noSubBlocks!()
+            tokenIndex := 0
+            finalRule.next!(tokenIndex, "final")
+            finalRule.next!(tokenIndex, "=")
+            expression .= finalRule.getRuleExpression(tokenIndex, argumentsNames, data)
+            finalRegister .= expression.compile(registers, finalRuleIndex + 1, data, argumentsNames, argumentsTypes, compiledData)
+            result = result && finalRegister == Box(Bool).create(true)
+    parse index, argument <- function.arguments
+        if !argument.type.empty?()
+            then if argument.type.baseType[][0] == '>'
+                then
+                    groupName .= argument.type.baseType.replaceValue(argument.type.baseType[].getAllExceptFirst())
+                    if < !data.groups[groupName[]]
+                        then errorNotExist(groupName, "group")
+                    compiledType .= argumentsTypes[index].compile(data, compiledData)
+                    result = result && compiledType.groups[groupName[]]
+                else
+                    typeBox .= argument.type.toRealOperandType(function.arguments.toStrings(), argumentsTypes)
+                    if typeBox.empty?()
+                        then result = false
+                        else result = result && argumentsTypes[index] == typeBox[]

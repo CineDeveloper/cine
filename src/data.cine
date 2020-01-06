@@ -18,9 +18,7 @@ proc createBuiltIn(:data)
     rules
         final = data == Data
     fakeFile .= [[UInt8]]{{
-        "func clone(a) #4",
-        "    rules",
-        "        result = a",
+        "func clone(a) a #4",
         "    haveLink? a",
         "        then result = builtInClone(a)",
         "        else",
