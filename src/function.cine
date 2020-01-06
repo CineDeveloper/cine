@@ -8,20 +8,14 @@ type Function
     priority UInt8
     isFunction Bool
 
-func getFunctionArgumentsID(function)
+func getFunctionArgumentsID(function Function) UInt8
     attributes
         alwaysInline
-    rules
-        final = function == Function
-        result = UInt8
     if function.isFunction
         then result = 128.convertTo(UInt8)
     result += function.arguments.getLength().convertTo(UInt8)
 
-func precompile(function, data, arguments, :compiledData)
-    rules
-        final = function == Function & data == Data & arguments == [Operand] & compiledData == CompiledData
-        result = CompiledFunction
+func precompile(function Function, data Data, arguments [Operand], :compiledData CompiledData) CompiledFunction
     result:cName = function.getCName(arguments)
     if compiledFunction .= compiledData.functions[result.cName]; compiledFunction.item?()
         then result = compiledFunction[]
@@ -51,9 +45,7 @@ func precompile(function, data, arguments, :compiledData)
         if !compiledData.cLibs.contain?(cLib)
             then compiledData:cLibs:join(cLib, "\n")
 
-proc compile(function, data, arguments, :waitingFunctions, :compiledData)
-    rules
-        final = function == Function & data == Data & waitingFunctions == [Pair(Function, [Operand])] & compiledData == CompiledData
+proc compile(function Function, data Data, arguments [Operand], :waitingFunctions [Pair(Function, [Operand])], :compiledData CompiledData)
     functionCName .= function.getCName(arguments)
     compilingFunction := compiledData.functions[functionCName][]
     if compilingFunction.fullCompiled
@@ -99,18 +91,13 @@ proc compile(function, data, arguments, :waitingFunctions, :compiledData)
         else compiledData:cFunctions += "\t}\n}\n\n"
     compiledData:functions:add(functionCName, compilingFunction)
 
-proc compile(:waitingFunctions, data, :compiledData)
-    rules
-        final = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
+proc compile(:waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData)
     for waitingFunctions.getLength() != 0
         currentCompilingFunction .= waitingFunctions.getLast()
         waitingFunctions = waitingFunctions.getAllExceptLast()
         currentCompilingFunction.first.compile(data, currentCompilingFunction.second, waitingFunctions, compiledData)
 
-func getCName(function, arguments)
-    rules
-        final = function == Function & arguments == [Operand]
-        result = [UInt8]
+func getCName(function Function, arguments [Operand]) [UInt8]
     result = select(function.isFunction, "f", "p")
     result:join("__", function.name[])
     case result.getLast() of
@@ -124,10 +111,7 @@ func getCName(function, arguments)
         result:join("__", argument.typeNumber.toString(), "__", select(argument.mutable, "t", "f"))
     result:join("__", function.priority.toString(), "__", function.name.getUniqID())
 
-func finalRuleTrue?(function, data, argumentsTypes, :compiledData)
-    rules
-        final = function == Function & data == Data & argumentsTypes == [OperandType] & compiledData == CompiledData
-        result = Bool
+func finalRuleTrue?(function Function, data Data, argumentsTypes [OperandType], :compiledData CompiledData) Bool
     finalRuleIndex := 0
     if function.isFunction
         then

@@ -2,12 +2,7 @@ type FunctionInExpression
     name Token
     arguments [FunctionExpression]
 
-func toOperand(functionInExpression, :registersCount, :waitingFunctions, haveResult, data, :compiledData)
-    rules
-        1 = functionInExpression == FunctionInExpression & registersCount == UInt64
-        2 = waitingFunctions == [Pair(Function, [Operand])] & haveResult == Bool & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = Pair([UInt8], Operand)
+func toOperand(functionInExpression FunctionInExpression, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], haveResult Bool, data Data, :compiledData CompiledData) Pair([UInt8], Operand)
     arguments := [Operand].init(functionInExpression.arguments.getLength())
     tmpOperands := Map([UInt8], Operand)
     parse argumentIndex, argumentExpression <- functionInExpression.arguments

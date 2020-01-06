@@ -1,6 +1,4 @@
-proc warningUsingDeprecated(function)
+proc warningUsingDeprecated(function Token)
     attributes
         noInline
-    rules
-        final = function == Token
     print(function.coordinatesToString(), "Warning! Using a function named \042", function[],"\042 which is marked as deprecated.\n")

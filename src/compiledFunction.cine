@@ -4,10 +4,7 @@ type CompiledFunction
     cName [UInt8]
     fullCompiled Bool
 
-func getNamedOperands(compilingFunction, arguments, resultType)
-    rules
-        final = compilingFunction == CompiledFunction & arguments == [Operand] & resultType == CompiledType
-        result = Map([UInt8], NamedOperand)
+func getNamedOperands(compilingFunction CompiledFunction, arguments [Operand], resultType CompiledType) Map([UInt8], NamedOperand)
     parse argumentIndex, argument <- arguments
         argumentName .= compilingFunction.argumentsNames[argumentIndex]
         mutArgument := argument

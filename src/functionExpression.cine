@@ -68,13 +68,7 @@ func getItem(functionExpression)
         result = [Fluid]
     result = functionExpression.expression
 
-func compile(expression, :registersCount, :waitingFunctions, data, :compiledData, haveResult, expectedType, :tmpOperands)
-    rules
-        1 = expression == FunctionExpression & registersCount == UInt64
-        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        3 = haveResult == Bool & expectedType == OperandType & tmpOperands == Map([UInt8], Operand)
-        final = 1 & 2 & 3
-        result = Pair([UInt8], Operand)
+func compile(expression FunctionExpression, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData, haveResult Bool, expectedType OperandType, :tmpOperands Map([UInt8], Operand)) Pair([UInt8], Operand)
     done := false
     for priority := 10.convertTo(UInt8); priority != UInt8.maxValue(); priority--
         code_operand .= expression.computeOperations(priority, registersCount, waitingFunctions, data, compiledData, haveResult, tmpOperands)
@@ -86,13 +80,7 @@ func compile(expression, :registersCount, :waitingFunctions, data, :compiledData
     if < (result.second.value == "" && haveResult) || !(expectedType.empty?() || expectedType == result.second.type)
         then errorWrongType(result.second.expressionForErrors)
 
-func computeOperations(expression, priority, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tmpOperands)
-    rules
-        1 = expression == FunctionExpression & priority == UInt8
-        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data
-        3 = compiledData == CompiledData & haveResult == Bool & tmpOperands == Map([UInt8],Operand)
-        final = 1 & 2 & 3
-        result = Box(Pair([UInt8], Operand))
+func computeOperations(expression FunctionExpression, priority UInt8, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData, haveResult Bool, :tmpOperands Map([UInt8],Operand)) Box(Pair([UInt8], Operand))
     case priority of
         0
             result = expression.compute0PriorityOperations(registersCount, waitingFunctions, data, compiledData, haveResult, tmpOperands)
@@ -168,13 +156,7 @@ func computeOperations(expression, priority, :registersCount, :waitingFunctions,
                                 result:put(Pair([UInt8], Operand).create(code, operand1))
                                 return
 
-func compute0PriorityOperations(expression, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tmpOperands)
-    rules
-        1 = expression == FunctionExpression
-        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data
-        3 = compiledData == CompiledData & haveResult == Bool & tmpOperands == Map([UInt8],Operand)
-        final = 1 & 2 & 3
-        result = Box(Pair([UInt8], Operand))
+func compute0PriorityOperations(expression FunctionExpression, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData, haveResult Bool, :tmpOperands Map([UInt8],Operand)) Box(Pair([UInt8], Operand))
     for index := expression[].getLength() - 1; index != UInt64.maxValue(); index--
         expressionPart .= expression[][index]
         case expressionPart.getInnerTypeNumber() of
@@ -562,13 +544,7 @@ func compute0PriorityOperations(expression, :registersCount, :waitingFunctions, 
                 result:put(Pair([UInt8], Operand).create("", resultOperand))
                 return
 
-func compute1PriorityOperations(expression, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tmpOperands)
-    rules
-        1 = expression == FunctionExpression
-        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data
-        3 = compiledData == CompiledData & haveResult == Bool & tmpOperands == Map([UInt8],Operand)
-        final = 1 & 2 & 3
-        result = Box(Pair([UInt8], Operand))
+func compute1PriorityOperations(expression FunctionExpression, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData, haveResult Bool, :tmpOperands Map([UInt8],Operand)) Box(Pair([UInt8], Operand))
     for index := expression[].getLength() - 1; index != UInt64.maxValue(); index--
         if expressionPart .= expression[][index]; expressionPart.getInnerTypeNumber() == Operator.getTypeNumber()
             then
@@ -589,12 +565,9 @@ func compute1PriorityOperations(expression, :registersCount, :waitingFunctions, 
                         result:put(Pair([UInt8], Operand).create(code, resultOperand))
                         return
 
-func getPriority(operator)
+func getPriority(operator Operator) UInt8
     attributes
         alwaysInline
-    rules
-        final = operator == Operator
-        result = UInt8
     case operator.operator[] of
         "*"; "/"; "%"
             result = 2.convertTo(UInt8)
@@ -615,12 +588,9 @@ func getPriority(operator)
         "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; ">>="; "<<="
             result = 10.convertTo(UInt8)
 
-func toFunctionName(operator)
+func toFunctionName(operator Operator) Token
     attributes
         alwaysInline
-    rules
-        final = operator == operator
-        result = Token
     result = operator.operator
     case result[] of
         "*"
@@ -676,12 +646,9 @@ func toFunctionName(operator)
         "<<="
             result:value = "shlEq"
 
-func firstArgMutable?(operator)
+func firstArgMutable?(operator Operator) Bool
     attributes
         alwaysInline
-    rules
-        final = operator == Operator
-        result = Bool
     case operator.operator[] of
         "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; ">>="; "<<="
             result = true

@@ -16,21 +16,12 @@ type RuleOperator
 type RuleFunctionArgument
     argument Token
 
-func getItem(ruleExpression)
+func getItem(ruleExpression RuleExpression) [Fluid]
     attributes
         alwaysInline
-    rules
-        final = ruleExpression == RuleExpression
-        result = [Fluid]
     result = ruleExpression.expression
 
-func compile(expression, registers, currentRegisterIndex, data, argumentsNames, argumentsTypes, :compiledData)
-    rules
-        1 = expression == RuleExpression & registers == [Bool] & currentRegisterIndex == UInt64
-        2 = data == Data & argumentsNames == [[UInt8]] & argumentsTypes == [OperandType]
-        3 = compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = Box(Bool)
+func compile(expression RuleExpression, registers [Bool], currentRegisterIndex UInt64, data Data, argumentsNames [[UInt8]], argumentsTypes [OperandType], :compiledData CompiledData) Box(Bool)
     for priority := 3.convertTo(UInt8); priority != UInt8.maxValue(); priority--
         for index := expression[].getLength() - 1; index != UInt64.maxValue(); index--
             expressionItem .= expression[][index]

@@ -3,55 +3,32 @@ type NamedOperand
     operand Operand
     enslaved Bool
 
-func deleteLevel(:namedOperands, level, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = namedOperands == Map([UInt8], NamedOperand)
-        2 = level == UInt64 & registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func deleteLevel(:namedOperands Map([UInt8], NamedOperand), level UInt64, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     result = namedOperands.freeOperands(level, registersCount, waitingFunctions, data, compiledData)
     namedOperands:deleteOperands(level)
 
-func freeOperands(namedOperands, level, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = namedOperands == Map([UInt8], NamedOperand)
-        2 = level == UInt64 & registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func freeOperands(namedOperands Map([UInt8], NamedOperand), level UInt64, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     parse _, namedOperand <- namedOperands
         if namedOperand.level >= level
             then if !namedOperand.enslaved
                 then result += namedOperand.operand.freeOperand(registersCount, waitingFunctions, data, compiledData)
 
-proc deleteOperands(:namedOperands, level)
-    rules
-        final = namedOperands == Map([UInt8], NamedOperand) & level == UInt64
+proc deleteOperands(:namedOperands Map([UInt8], NamedOperand), level UInt64)
     newNamedOperands := Map([UInt8], NamedOperand)
     parse name, namedOperand <- namedOperands
         if namedOperand.level < level
             then newNamedOperands:add(name, namedOperand)
     namedOperands = newNamedOperands
 
-func getAllNamesAndTypes(namedOperands)
-    rules
-        final = namedOperands == Map([UInt8], NamedOperand)
-        result = Pair([[UInt8]], [OperandType])
+func getAllNamesAndTypes(namedOperands Map([UInt8], NamedOperand)) Pair([[UInt8]], [OperandType])
     parse name, namedOperand <- namedOperands
         result:first += name
         result:second += namedOperand.operand.type
 
-proc addNewOperand(:namedOperands, name, operand, level)
-    rules
-        1 = namedOperands == Map([UInt8], NamedOperand) & name == Token
-        2 = operand == Operand & level == UInt64
-        final = 1 & 2
+proc addNewOperand(:namedOperands Map([UInt8], NamedOperand), name Token, operand Operand, level UInt64)
     if < namedOperands[name[]].item?()
         then errorAlreadyExist(name, "variable")
         else namedOperands:add(name[], NamedOperand{level: level, operand: operand})
 
-proc addHidenOperand(:namedOperands, operand, level)
-    rules
-        final = namedOperands == Map([UInt8], NamedOperand) & operand == Operand & level == UInt64
+proc addHidenOperand(:namedOperands Map([UInt8], NamedOperand), operand Operand, level UInt64)
     namedOperands:add("__ho_" + operand.expressionForErrors.getUniqID(), NamedOperand{level: level, operand: operand})

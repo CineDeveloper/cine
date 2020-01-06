@@ -1,7 +1,4 @@
-func loadBlocks(intputFiles)
-    rules
-        final = intputFiles == [[UInt8]]
-        result = [Block]
+func loadBlocks(intputFiles [[UInt8]]) [Block]
     parse fileIndex, fileName <- intputFiles
         file .= loadFile(fileName)
         if < file.empty?()
@@ -13,9 +10,7 @@ func loadBlocks(intputFiles)
                 then result += block[]
                 else break
 
-proc parseBlocks(blocks, :data)
-    rules
-        final = blocks == [Block] & data == Data
+proc parseBlocks(blocks [Block], :data Data)
     parse _, block <- blocks
         case block.line[0][] of
             "func"; "proc"
@@ -46,10 +41,7 @@ proc parseBlocks(blocks, :data)
             default
                 errorNotExpectedToken(block.line[0], "")
 
-func getTypeMembers(blocks, argumets)
-    rules
-        final = blocks == [Block] & argumets == [[UInt8]]
-        result = Map([UInt8], TypeMember)
+func getTypeMembers(blocks [Block], argumets [[UInt8]]) Map([UInt8], TypeMember)
     parse _, membersBlock <- blocks
         members .= membersBlock.getTypeMembersFromOneLine(argumets)
         parse _, member <- members
@@ -57,10 +49,7 @@ func getTypeMembers(blocks, argumets)
                 then errorAlreadyExist(member.name, "type member")
             result:add(member.name[], member)
 
-func getFlags(blocks)
-    rules
-        final = blocks == [Block]
-        result = [Pair(Token, [UInt8])]
+func getFlags(blocks [Block]) [Pair(Token, [UInt8])]
     parse _, block <- blocks
         block.noSubBlocks!()
         tokenIndex := 0
@@ -69,10 +58,7 @@ func getFlags(blocks)
         block.eol!(tokenIndex)
         result += Pair(Token, [UInt8]).create(name, description)
 
-func getFunctionAttributes(attributes)
-    rules
-        final = attributes == [Block]
-        result = FunctionAttributes
+func getFunctionAttributes(attributes [Block]) FunctionAttributes
     parse _, attributeBlock <- attributes
         attributeBlock.noSubBlocks!()
         tokenIndex := 0

@@ -2,25 +2,17 @@ type Token
     value, file [UInt8]
     line, row, fileIndex UInt64
 
-func getItem(token)
+func getItem(token Token) [UInt8]
     attributes
         alwaysInline
-    rules
-        final = token == Token
-        result = [UInt8]
     result = token.value
 
-func coordinatesToString(token)
-    rules
-        final = token == Token
-        result = [UInt8]
+func coordinatesToString(token Token) [UInt8]
     result = "File: ".join(token.file, ", line: ", (token.line + 1).toString(), ", row: ", (token.row + 1).toString(), ". ")
 
-proc enumName!(name)
+proc enumName!(name Token)
     attributes
         alwaysInline
-    rules
-        final = name == Token
     nameCorrect := name[][0].lower?() && name[].contain?('_')
     if > nameCorrect
         then
@@ -30,11 +22,9 @@ proc enumName!(name)
     if < !nameCorrect
         then errorWrongName(name, "enum")
 
-proc groupName!(name)
+proc groupName!(name Token)
     attributes
         alwaysInline
-    rules
-        final = name == Token
     nameCorrect := name[][0].upper?()
     if > nameCorrect
         then
@@ -44,27 +34,19 @@ proc groupName!(name)
     if < !nameCorrect
         then errorWrongName(name, "group")
 
-func replaceValue(token, value)
-    rules
-        final = token == Token & value == [UInt8]
-        result = Token
+func replaceValue(token Token, value [UInt8]) Token
     result = token
     result:value = value
 
-proc integer!(integer, allowNegative, allowNotDecimal)
+proc integer!(integer Token, allowNegative Bool, allowNotDecimal Bool)
     attributes
         alwaysInline
-    rules
-        final = integer == Token & allowNegative == Bool & allowNotDecimal == Bool
     if < !integer?(integer[], allowNegative, allowNotDecimal)
         then errorNotExpectedToken(integer, "")
 
-func integer?(integer, allowNegative, allowNotDecimal)
+func integer?(integer [UInt8], allowNegative Bool, allowNotDecimal Bool) Bool
     attributes
         alwaysInline
-    rules
-        final = integer == [UInt8] & allowNegative == Bool & allowNotDecimal == Bool
-        result = Bool
     absNumber := ""
     if integer[0] == '-'
         then
@@ -83,11 +65,9 @@ func integer?(integer, allowNegative, allowNotDecimal)
                 if result = char.digit?(); !result
                     then break
 
-proc float!(arg)
+proc float!(arg Token)
     attributes
         alwaysInline
-    rules
-        final = arg == Token
     mutValue := arg[]
     if mutValue[0] == '-'
         then mutValue = mutValue.getAllExceptFirst()
@@ -102,8 +82,5 @@ proc float!(arg)
     if < error
         then errorIncorrectFloat(arg)
 
-func getUniqID(token)
-    rules
-        final = token == Token
-        result = [UInt8]
+func getUniqID(token Token) [UInt8]
     result = token.fileIndex.toString().join("_", token.line.toString(), "_", token.row.toString())

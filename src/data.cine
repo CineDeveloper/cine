@@ -7,16 +7,11 @@ type Data
     globalRules [[Block]]
     flags Map([UInt8], [UInt8])
 
-func initData(blocks)
-    rules
-        final = blocks == [Block]
-        result = Data
+func initData(blocks [Block]) Data
     result:createBuiltIn()
     blocks.parseBlocks(result)
 
-proc createBuiltIn(:data)
-    rules
-        final = data == Data
+proc createBuiltIn(:data Data)
     fakeFile .= [[UInt8]]{{
         "func clone(a) a #4",
         "    haveLink? a",
@@ -62,9 +57,7 @@ proc createBuiltIn(:data)
         bltInType = bltInType.replaceCoordinates(coordinates)
         data:add(bltInType.toType())
 
-proc add(:data, function)
-    rules
-        final = data == Data & function == Function
+proc add(:data Data, function Function)
     priority .= function.priority
     argumentsID .= function.getFunctionArgumentsID()
     functionsWithName := [Map(UInt8, [Function])]
@@ -87,31 +80,22 @@ proc add(:data, function)
                 then errorAlreadyExist(function.attributes.id, "function id")
             data:functionsByID:add(id, function)
 
-proc add(:data, type)
-    rules
-        final = data == Data & type == Type
+proc add(:data Data, type Type)
     if < data.types[type.name[]].item?()
         then errorAlreadyExist(type.name, "type")
         else data:types:add(type.name[], type)
 
-proc addEnum(:data, enum)
-    rules
-        final = data == Data & enum == Token
+proc addEnum(:data Data, enum Token)
     if < data.enums[enum[]].item?()
         then errorAlreadyExist(enum, "enum")
         else data:enums:add(enum[], (data.enums.getLength() + 1).convertTo(UInt32))
 
-proc addGroup(:data, group)
-    rules
-        final = data == Data & group == Token
+proc addGroup(:data Data, group Token)
     if < data.groups[group[]]
         then errorAlreadyExist(group, "group")
         else data:groups += group[]
 
-func compileMainFunction(data)
-    rules
-        final = data == Data
-        result = CompiledData
+func compileMainFunction(data Data) CompiledData
     mainFunction .= data.getFunction(Token{value: "main", file: "[BuiltIn]"}, [Operand], false, result)
     precompiledMainFunction .= mainFunction.precompile(data, [Operand], result)
     result:mainFunctionCName = precompiledMainFunction.cName
@@ -119,10 +103,7 @@ func compileMainFunction(data)
     mainFunction.compile(data, [Operand], waitingFunctions, result)
     waitingFunctions:compile(data, result)
 
-func getFunction(data, name, arguments, isFunction, :compiledData)
-    rules
-        final = data == Data & name == Token & arguments == [Operand] & isFunction == Bool & compiledData == CompiledData
-        result = Function
+func getFunction(data Data, name Token, arguments [Operand], isFunction Bool, :compiledData CompiledData) Function
     argumentsID := UInt8
     if isFunction
         then argumentsID = 128.convertTo(UInt8)
@@ -143,23 +124,16 @@ func getFunction(data, name, arguments, isFunction, :compiledData)
                                 then errorSeveralSuitableFunctions(name, allSuitable)
     errorFunctionNotExist(name, isFunction, arguments)
 
-func getType(data, type)
-    rules
-        final = data == Data & type == Token
-        result = Type
+func getType(data Data, type Token) Type
     if boxResult .= data.types[type[]]; > boxResult.item?()
         then result = boxResult[]
         else errorNotExist(type, "type")
 
-proc groupExist!(data, name)
-    rules
-        final = data == Data & name == Token
+proc groupExist!(data Data, name Token)
     if < !data.groups[name[]]
         then errorNotExist(name, "group")
 
-proc add(:data, flags)
-    rules
-        final = data == Data & flags == [Pair(Token, [UInt8])]
+proc add(:data Data, flags [Pair(Token, [UInt8])])
     parse _, flag_ <- flags
         if < data.flags[flag_.first[]].item?()
             then errorAlreadyExist(flag_.first, "flag")

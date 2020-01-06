@@ -1,7 +1,4 @@
-func constIntToOperand(int, data, :compiledData)
-    rules
-        final = int == Token & data == Data & compiledData == CompiledData
-        result = Operand
+func constIntToOperand(int Token, data Data, :compiledData CompiledData) Operand
     result:type = OperandType{baseType: Token{value: "UInt64"}}
     intType .= result.type.compile(data, compiledData)
     result:value = select(int[][0].digit?(), "(uint64_t)".join(int[], "ull"), int[])
@@ -10,10 +7,7 @@ func constIntToOperand(int, data, :compiledData)
     result:cType = intType.cType
     result:constant = true
 
-func constStringToOperand(string, data, :compiledData)
-    rules
-        final = string == Token & data == Data & compiledData == CompiledData
-        result = Operand
+func constStringToOperand(string Token, data Data, :compiledData CompiledData) Operand
     result:type = OperandType{baseType: Token{value: "Slice"}, arguments: [OperandType]{OperandType{baseType: Token{value: "UInt8"}}}}
     stringType .= result.type.compile(data, compiledData)
     stringLength .= "strlen(".join(string[], ")")
@@ -24,10 +18,7 @@ func constStringToOperand(string, data, :compiledData)
     result:haveLink = true
     result:constant = true
 
-func constBoolToOperand(bool, data, :compiledData)
-    rules
-        final = bool == Token & data == Data & compiledData == CompiledData
-        result = Operand
+func constBoolToOperand(bool Token, data Data, :compiledData CompiledData) Operand
     result:type = OperandType{baseType: Token{value: "Bool"}}
     boolType .= result.type.compile(data, compiledData)
     result:value = bool[]
@@ -36,10 +27,7 @@ func constBoolToOperand(bool, data, :compiledData)
     result:cType = boolType.cType
     result:constant = true
 
-func constFloatToOperand(float, data, :compiledData)
-    rules
-        final = float == Token & data == Data & compiledData == CompiledData
-        result = Operand
+func constFloatToOperand(float Token, data Data, :compiledData CompiledData) Operand
     result:type = OperandType{baseType: Token{value: "Float64"}}
     floatType .= result.type.compile(data, compiledData)
     result:value = float[]
@@ -48,10 +36,7 @@ func constFloatToOperand(float, data, :compiledData)
     result:cType = floatType.cType
     result:constant = true
 
-func constCharToOperand(char, data, :compiledData)
-    rules
-        final = char == Token & data == Data & compiledData == CompiledData
-        result = Operand
+func constCharToOperand(char Token, data Data, :compiledData CompiledData) Operand
     result:type = OperandType{baseType: Token{value: "UInt8"}}
     charType .= result.type.compile(data, compiledData)
     result:value = "(uint8_t)" + char[]

@@ -1,16 +1,12 @@
-proc errorWrongCMDLineArg(argument)
+proc errorWrongCMDLineArg(argument [UInt8])
     attributes
         noInline
-    rules
-        final = argument == [UInt8]
     print("\042", argument, "\042 is an unknown command-line argument.\n")
     exit()
 
-proc errorInputFileSpecifiedSeverealTimes(file)
+proc errorInputFileSpecifiedSeverealTimes(file [UInt8])
     attributes
         noInline
-    rules
-        final = file == [UInt8]
     print("File \042", file, "\042 is specified several times.\n")
     exit()
 
@@ -26,139 +22,107 @@ proc errorManyFlagsFiles()
     print("The flags file should be only one.\n")
     exit()
 
-proc errorUnnecessaryArgument(argument)
+proc errorUnnecessaryArgument(argument [UInt8])
     attributes
         noInline
-    rules
-        final = argument == [UInt8]
     print("The argument \042", argument, "\042 must be specified without any other arguments.\n")
     exit()
 
-proc errorCantLoadFile(file)
+proc errorCantLoadFile(file [UInt8])
     attributes
         noInline
-    rules
-        final = file == [UInt8]
     print("It is not possible to read the file \042", file, "\042.\n")
     exit()
 
-proc errorWrongLevel(file, line, expectedLevel, haveLevel)
+proc errorWrongLevel(file [UInt8], line UInt64, expectedLevel UInt64, haveLevel UInt64)
     attributes
         noInline
-    rules
-        final = file == [UInt8] & line == UInt64 & expectedLevel == UInt64 & haveLevel == UInt64
     print("File: \042", file, "\042, line: ", line, ". Wrong level. (expected - ", expectedLevel, ", have - ", haveLevel, ")\n")
     exit()
 
-proc errorNotExpectedToken(have, expected)
+proc errorNotExpectedToken(have Token, expected [UInt8])
     attributes
         noInline
-    rules
-        final = have == Token & expected == [UInt8]
     print(have.coordinatesToString())
     if expected == ""
         then print("\042", have[], "\042 not expected.\n")
         else print("Expected \042", expected, "\042 but there is the \042", have[], "\042.\n")
     exit()
 
-proc errorNotExpectedEOL(lastToken, expected)
+proc errorNotExpectedEOL(lastToken Token, expected [UInt8])
     attributes
         noInline
-    rules
-        final = lastToken == Token & expected == [UInt8]
     lastPartOfMessage .= select(expected == "", "Unexpected end of line.\n", " \042" + expected + "\042 was expected but the end of the line was found.\n")
     unexistedToken := lastToken
     unexistedToken:row += unexistedToken[].getLength()
     print(unexistedToken.coordinatesToString(), lastPartOfMessage)
     exit()
 
-proc errorTabNotAllowed(file, line, row)
+proc errorTabNotAllowed(file [UInt8], line UInt64, row UInt64)
     attributes
         noInline
-    rules
-        final = file == [UInt8] & line == UInt64 & row == UInt64
     print("File: \042", file, "\042, line: ", line, ", row: ", row, ". The tab character is not allowed to format text.\n")
     exit()
 
-proc errorAlreadyExist(name, whatExist)
+proc errorAlreadyExist(name Token, whatExist [UInt8])
     attributes
         noInline
-    rules
-        final = name == Token & whatExist == [UInt8]
     print(name.coordinatesToString(), "The ", whatExist, " \042", name[], "\042 already exists.\n")
     exit()
 
-proc errorWrongName(name, nameOwner)
+proc errorWrongName(name Token, nameOwner [UInt8])
     attributes
         noInline
-    rules
-        final = name == Token & nameOwner == [UInt8]
     print(name.coordinatesToString(), "Wrong ", nameOwner, " name. (", name[], ")\n")
     exit()
 
-proc errorExpectSubBlock(file, line)
+proc errorExpectSubBlock(file [UInt8], line UInt64)
     attributes
         noInline
-    rules
-        final = file == [UInt8] & line == UInt64
     print("File: \042", file, "\042, line: ", line, ". A sub block was expected.\n")
     exit()
 
-proc errorNotExist(name, whatNotExist)
+proc errorNotExist(name Token, whatNotExist [UInt8])
     attributes
         noInline
-    rules
-        final = name == Token & whatNotExist == [UInt8]
     print(name.coordinatesToString(), "The ", whatNotExist, " \042", name[], "\042 does not exist.\n")
     exit()
 
-proc errorSeveralVariableToFunction(argument1, argument2)
+proc errorSeveralVariableToFunction(argument1 Token, argument2 Token)
     attributes
         noInline
-    rules
-        final = argument1 == Token & argument1 == argument2
     print(argument1.coordinatesToString(), "You cannot pass a variable several times to a function if it is passed as mutable even once.\narguments:\n1 - ", argument1[], "\n2 - ", argument2[], "\n")
     exit()
 
-proc errorExpectMutable(coordinates)
+proc errorExpectMutable(coordinates Token)
     attributes
         noInline
-    rules
-        final = coordinates == Token
     print(coordinates.coordinatesToString(), "A mutable object was expected.\n")
     exit()
 
-proc errorRecursiveType(type)
+proc errorRecursiveType(type Token)
     attributes
         noInline
-    rules
-        final = type == Token
     print(type.coordinatesToString(), "Type \042", type[], "\042 is recursive.\n")
     exit()
 
-proc errorWrongType(type)
+proc errorWrongType(type Token)
     attributes
         noInline
-    rules
-        final = type == Token
     print(type.coordinatesToString(), "The type \042", type[], "\042 is wrong.\n")
     exit()
 
-proc errorSeveralSuitableFunctions(name, allSuitable)
+proc errorSeveralSuitableFunctions(name Token, allSuitable [Function])
     attributes
         noInline
-    rules
-        final = name == Token & allSuitable == [Function]
     print(name.coordinatesToString(), "Several functions named \042", name[], "\042 are suitable.\nFunctions:\n")
     parse _, function <- allSuitable
         printLn(function.name.coordinatesToString())
     exit()
 
-proc errorFunctionNotExist(name, isFunction, arguments)
+proc errorFunctionNotExist(name Token, isFunction Bool, arguments [Operand])
     attributes
         noInline
-    rules
-        final = name == Token & isFunction == Bool & arguments == [Operand]
     print(name.coordinatesToString(), "The ", select(isFunction, "function", "procedure"), " \042", name[], "\042 does not exist.\n")
     argumentsStr := ""
     if arguments.getLength() != 0
@@ -169,50 +133,38 @@ proc errorFunctionNotExist(name, isFunction, arguments)
     print("arguments - (", argumentsStr, ")\n")
     exit()
 
-proc errorNotResultType(name)
+proc errorNotResultType(name Token)
     attributes
         noInline
-    rules
-        final = name == Token
     print(name.coordinatesToString(), "The function \042", name[], "\042 does not define the type of result.\n")
     exit()
 
-proc errorIncorrectFloat(arg)
+proc errorIncorrectFloat(arg Token)
     attributes
         noInline
-    rules
-        final = arg == Token
     print(arg.coordinatesToString(), "\042", arg[], "\042 is an incorrect floating point number.\n")
     exit()
 
-proc errorBreakOrContinueToDeep(coordinates)
+proc errorBreakOrContinueToDeep(coordinates Token)
     attributes
         noInline
-    rules
-        final = coordinates == Token
     print(coordinates.coordinatesToString(), "Not enough blocks.\n")
     exit()
 
-proc errorCantWriteToFile(file)
+proc errorCantWriteToFile(file [UInt8])
     attributes
         noInline
-    rules
-        final = file == [UInt8]
     print("It is not possible to write to the file \042", file, "\042.\n")
     exit()
 
-proc errorInvalidNumberOfArguments(coordinates)
+proc errorInvalidNumberOfArguments(coordinates Token)
     attributes
         noInline
-    rules
-        final = coordinates == Token
     print(coordinates.coordinatesToString(), "Invalid number of arguments.")
     exit()
 
-proc errorWrongArguments(coordinates)
+proc errorWrongArguments(coordinates Token)
     attributes
         noInline
-    rules
-        final = coordinates == Token
     print(coordinates.coordinatesToString(), "Arguments do not match the function.")
     exit()

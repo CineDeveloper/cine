@@ -7,17 +7,11 @@ rules
     1 = type == OperandType
     join 1 Equal
 
-func compile(type, data, :compiledData)
-    rules
-        final = type == OperandType & data == Data & compiledData == CompiledData
-        result = CompiledType
+func compile(type OperandType, data Data, :compiledData CompiledData) CompiledType
     compilingTypes := Set([UInt8])
     result = type.compile(data, compiledData, compilingTypes)
 
-func compile(type, data, :compiledData, :compilingTypes)
-    rules
-        final = type == OperandType & data == Data & compiledData == CompiledData & compilingTypes == Set([UInt8])
-        result = CompiledType
+func compile(type OperandType, data Data, :compiledData CompiledData, :compilingTypes Set([UInt8])) CompiledType
     typeToken .= type.toToken()
     if < compilingTypes[typeToken[]]
         then errorRecursiveType(typeToken)
@@ -104,24 +98,15 @@ func compile(type, data, :compiledData, :compilingTypes)
     compilingTypes -= typeToken[]
     result:executeGlobalRules(type, data, compiledData)
 
-func private_memberLessFunc(a, b)
-    rules
-        final = a == b & a == [UInt8]
-        result = Bool
+func private_memberLessFunc(a [UInt8], b a) Bool
     result = (a >= b || a[0] == '0') && b[0] != '0'
 
-func function?(type)
+func function?(type OperandType) Bool
     attributes
         alwaysInline
-    rules
-        final = type == OperandType
-        result = Bool
     result = type.baseType[] == "@"
 
-func toToken(type)
-    rules
-        final = type == OperandType
-        result = Token
+func toToken(type OperandType) Token
     if type.function?()
         then
             result = type.baseType
@@ -147,12 +132,7 @@ func toToken(type)
                         result:value:join(argument.toToken()[], ",")
                     result:value:setLast(select(isSlice, ']', ')'))
 
-func toRealCStructDef(cStructDef, typeNumber, argumentsNames, argumentsTypes, data, :compiledData, :compilingTypes)
-    rules
-        1 = cStructDef == Token & typeNumber == UInt64 & argumentsNames == [[UInt8]] & argumentsTypes == [OperandType]
-        2 = data == Data & compiledData == CompiledData & compilingTypes == Set([UInt8])
-        final = 1 & 2
-        result = [UInt8]
+func toRealCStructDef(cStructDef Token, typeNumber UInt64, argumentsNames [[UInt8]], argumentsTypes [OperandType], data Data, :compiledData CompiledData, :compilingTypes Set([UInt8])) [UInt8]
     if cStructDef[].contain?("##")
         then
             parts .= cStructDef[].split("##")
@@ -171,10 +151,7 @@ func toRealCStructDef(cStructDef, typeNumber, argumentsNames, argumentsTypes, da
         else result = cStructDef[]
     result = result.replace("^^", "t" + typeNumber.toString())
 
-func toRealOperandType(type, argumentsNames, argumentsTypes)
-    rules
-        final = type == OperandType & argumentsNames == [[UInt8]] & argumentsTypes == [OperandType]
-        result = Box(OperandType)
+func toRealOperandType(type OperandType, argumentsNames [[UInt8]], argumentsTypes [OperandType]) Box(OperandType)
     resultOperand := OperandType
     mif
         type.baseType[][0].upper?()
@@ -229,10 +206,7 @@ func toRealOperandType(type, argumentsNames, argumentsTypes)
             return
     result:put(resultOperand)
 
-func equal(type1, type2)
-    rules
-        final = type1 == type2 & type1 == OperandType
-        result = Bool
+func equal(type1 OperandType, type2 type1) Bool
     if type1.baseType[] == "_" || type2.baseType[] == "_"
         then return true
     result = {
@@ -255,9 +229,7 @@ func equal(type1, type2)
                 if result = argument == type2.arguments[argumentIndex]; !result
                     then break
 
-proc type!(operandType, data)
-    rules
-        final = operandType == OperandType & data == Data
+proc type!(operandType OperandType, data Data)
     if operandType.baseType[][0].upper?()
         then
             type .= data.getType(operandType.baseType)
@@ -272,10 +244,7 @@ proc type!(operandType, data)
                 parse _, argument <- operandType.functionType.arguments
                     argument.type.type!(data)
 
-func empty?(type)
+func empty?(type OperandType) Bool
     attributes
         alwaysInline
-    rules
-        final = type == OperandType
-        result = Bool
     result = type.baseType[] == ""

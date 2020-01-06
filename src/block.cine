@@ -16,10 +16,7 @@ enums
     ep_true
     ep_false
 
-func toFunction(block)
-    rules
-        final = block == Block
-        result = Function
+func toFunction(block Block) Function
     tokenIndex := 0
     if result:isFunction = block.next?(tokenIndex, "func"); !result.isFunction
         then tokenIndex++
@@ -67,10 +64,7 @@ func toFunction(block)
                 break all
     result:body = body.getAllExceptFirstN(bodyIndex)
 
-func toType(block)
-    rules
-        final = block == Block
-        result = Type
+func toType(block Block) Type
     tokenIndex := 1
     result:name = block.getTypeName(tokenIndex, true)
     if block.next?(tokenIndex, "(")
@@ -98,38 +92,29 @@ func toType(block)
         then block.noSubBlocks!()
         else result:members = block.subBlocks.getTypeMembers(result.arguments)
 
-proc eol!(block, tokenIndex)
+proc eol!(block Block, tokenIndex UInt64)
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64
     if < tokenIndex < block.line.getLength()
         then errorNotExpectedToken(block.line.getLast(), "")
 
-proc subBlocks!(block)
+proc subBlocks!(block Block)
     attributes
         alwaysInline
-    rules
-        final = block == Block
     if < block.subBlocks.getLength() == 0
         then
             token .= block.line[0]
             errorExpectSubBlock(token.file, token.line + 1)
 
-proc noSubBlocks!(block)
+proc noSubBlocks!(block Block)
     attributes
         alwaysInline
-    rules
-        final = block == Block
     if < block.subBlocks.getLength() != 0
         then errorNotExpectedToken(block.subBlocks[0].line[0], "")
 
-func getTypeName(block, :tokenIndex, fullCheck)
+func getTypeName(block Block, :tokenIndex UInt64, fullCheck Bool) Token
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
-        result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].upper?()
     if > nameCorrect
@@ -142,34 +127,25 @@ func getTypeName(block, :tokenIndex, fullCheck)
     if < !nameCorrect
         then errorWrongName(result, "type")
 
-func next?(block, :tokenIndex, variant)
+func next?(block Block, :tokenIndex UInt64, variant [UInt8]) Bool
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64 & variant == [UInt8]
-        result = Bool
     if tokenIndex < block.line.getLength()
         then if token := block.line[tokenIndex]; token[] == variant
             then
                 result = true
                 tokenIndex++
 
-func next?(block, :tokenIndex, variant1, variant2)
+func next?(block Block, :tokenIndex UInt64, variant1 [UInt8], variant2 [UInt8]) Bool
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64 & variant1 == [UInt8] & variant2 == [UInt8]
-        result = Bool
     if tokenIndex < block.line.getLength()
         then if token := block.line[tokenIndex]; token[] == variant1 || token[] == variant2
             then
                 result = true
                 tokenIndex++
 
-func getTypeArguments(block, :tokenIndex)
-    rules
-        final = block == Block & tokenIndex == UInt64
-        result = [[UInt8]]
+func getTypeArguments(block Block, :tokenIndex UInt64) [[UInt8]]
     for
         name .= block.getTypeArgumentName(tokenIndex)
         parse _, existedArgument <- result
@@ -179,41 +155,30 @@ func getTypeArguments(block, :tokenIndex)
         if !block.next?(tokenIndex, ",")
             then break
 
-proc next!(block, :tokenIndex, variant)
+proc next!(block Block, :tokenIndex UInt64, variant [UInt8])
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64 & variant == [UInt8]
     if < !block.next?(tokenIndex, variant)
         then if tokenIndex < block.line.getLength()
             then errorNotExpectedToken(block.line[tokenIndex], variant)
             else errorNotExpectedEOL(block.line.getLast(), variant)
 
-func getAlign(block, :tokenIndex)
+func getAlign(block Block, :tokenIndex UInt64) UInt8
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64
-        result = UInt8
     if token .= block.next(tokenIndex); > token[].getLength() == 1 && token[][0].digit?() && token[][0] != '0'
         then result = token[][0] - '0'
         else errorNotExpectedToken(token, "")
 
-func getString(block, :tokenIndex)
+func getString(block Block, :tokenIndex UInt64) [UInt8]
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64
-        result = [UInt8]
     token .= block.next(tokenIndex)
     if < token[][0] != '\042'
         then errorNotExpectedToken(token, "")
     result = token[].getAllExceptFirst().getAllExceptLast()
 
-func getTypeMembersFromOneLine(block, argumentsNames)
-    rules
-        final = block == Block & argumentsNames == [[UInt8]]
-        result = [TypeMember]
+func getTypeMembersFromOneLine(block Block, argumentsNames [[UInt8]]) [TypeMember]
     block.noSubBlocks!()
     tokenIndex := 0
     membersNames := [Token]
@@ -227,12 +192,9 @@ func getTypeMembersFromOneLine(block, argumentsNames)
     parse _, memberName <- membersNames
         result += TypeMember{name: memberName, type:membersType}
 
-func getTypeMemberName(block, :tokenIndex)
+func getTypeMemberName(block Block, :tokenIndex UInt64) Token
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64
-        result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
     if > nameCorrect
@@ -243,10 +205,7 @@ func getTypeMemberName(block, :tokenIndex)
     if < !nameCorrect
         then errorWrongName(result, "type member")
 
-func getOperandType(block, :tokenIndex, argumentsNames, allowUndefined, allowIndexing)
-    rules
-        final = block == Block & tokenIndex == UInt64 & argumentsNames == [[UInt8]] & allowUndefined == Bool & allowIndexing == Bool
-        result = OperandType
+func getOperandType(block Block, :tokenIndex UInt64, argumentsNames [[UInt8]], allowUndefined Bool, allowIndexing Bool) OperandType
     token .= block.next(tokenIndex)
     mif
         token[] == "@"
@@ -298,33 +257,24 @@ func getOperandType(block, :tokenIndex, argumentsNames, allowUndefined, allowInd
                             then break
                     block.next!(tokenIndex, ")")
 
-func next(block, :tokenIndex)
+func next(block Block, :tokenIndex UInt64) Token
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64
-        result = Token
     if < tokenIndex >= block.line.getLength()
         then errorNotExpectedEOL(block.line.getLast(), "")
     result = block.line[tokenIndex]
     tokenIndex++
 
-func getFunctionTypeArguments(block, :tokenIndex, argumentsNames, allowUndefined, allowIndexing)
-    rules
-        final = block == Block & tokenIndex == UInt64 & argumentsNames == [[UInt8]] & allowUndefined == Bool & allowIndexing == Bool
-        result = [FunctionTypeArgument]
+func getFunctionTypeArguments(block Block, :tokenIndex UInt64, argumentsNames [[UInt8]], allowUndefined Bool, allowIndexing Bool) [FunctionTypeArgument]
     for
         mutable .= block.next?(tokenIndex, ":")
         result += FunctionTypeArgument{mutable: mutable, type: block.getOperandType(tokenIndex, argumentsNames, allowUndefined, allowIndexing)}
         if !block.next?(tokenIndex, ",")
             then break
 
-func getFunctionArgumentName(block, :tokenIndex, fullCheck)
+func getFunctionArgumentName(block Block, :tokenIndex UInt64, fullCheck Bool) Token
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
-        result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
     if > nameCorrect
@@ -345,12 +295,9 @@ func getFunctionArgumentName(block, :tokenIndex, fullCheck)
     if < !nameCorrect
         then errorWrongName(result, "function argument")
 
-func getTypeArgumentName(block, :tokenIndex)
+func getTypeArgumentName(block Block, :tokenIndex UInt64) Token
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64
-        result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
     if > nameCorrect
@@ -361,12 +308,9 @@ func getTypeArgumentName(block, :tokenIndex)
     if < !nameCorrect
         then errorWrongName(result, "type argument")
 
-func getFunctionName(block, :tokenIndex, fullCheck)
+func getFunctionName(block Block, :tokenIndex UInt64, fullCheck Bool) Token
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
-        result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
     if > nameCorrect
@@ -385,10 +329,7 @@ func getFunctionName(block, :tokenIndex, fullCheck)
     if < !nameCorrect
         then errorWrongName(result, "function")
 
-func getFunctionArguments(block, :tokenIndex)
-    rules
-        final = block == Block & tokenIndex == UInt64
-        result = [FunctionArgument]
+func getFunctionArguments(block Block, :tokenIndex UInt64) [FunctionArgument]
     argumentsNames := [[UInt8]]
     for
         mutable .= block.next?(tokenIndex, ":")
@@ -411,10 +352,7 @@ func getFunctionArguments(block, :tokenIndex)
         if !block.next?(tokenIndex, ",")
             then break
 
-func replaceCoordinates(block, tokenWithCoordinates)
-    rules
-        final = block == Block & tokenWithCoordinates == Token
-        result = Block
+func replaceCoordinates(block Block, tokenWithCoordinates Token) Block
     result:line = [Token].init(block.line.getLength())
     result:subBlocks = [Block].init(block.subBlocks.getLength())
     parse tokenIndex, token <- block.line
@@ -422,13 +360,7 @@ func replaceCoordinates(block, tokenWithCoordinates)
     parse subIndex, subBlock <- block.subBlocks
         result:subBlocks:setItem(subIndex, subBlock.replaceCoordinates(tokenWithCoordinates))
 
-func compile(functionExpression, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = functionExpression == Block & currentLevel == UInt64
-        2 = namedOperands == Map([UInt8], NamedOperand) & registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64
-        3 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compile(functionExpression Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     tokenIndex := 0
     case functionExpression.next(tokenIndex)[] of
         "return"
@@ -465,10 +397,7 @@ func compile(functionExpression, currentLevel, :namedOperands, :registersCount, 
                 then result = functionExpression.compileEqExpression(namedOperands, registersCount, waitingFunctions, data, compiledData)
                 else result = functionExpression.compileNewVariableExpression(currentLevel, namedOperands, registersCount, waitingFunctions, data, compiledData)
 
-func getRuleExpression(rule, :tokenIndex, argumentsNames, data)
-    rules
-        final = rule == Block & tokenIndex == UInt64 & argumentsNames == [[UInt8]] & data == Data
-        result = RuleExpression
+func getRuleExpression(rule Block, :tokenIndex UInt64, argumentsNames [[UInt8]], data Data) RuleExpression
     rule.notEOL!(tokenIndex)
     previous := pir_Nothing
     for
@@ -542,20 +471,13 @@ func getRuleExpression(rule, :tokenIndex, argumentsNames, data)
     if previous != pir_Register
         then rule.notEOL!(tokenIndex)
 
-proc notEOL!(block, tokenIndex)
+proc notEOL!(block Block, tokenIndex UInt64)
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64
     if < tokenIndex >= block.line.getLength()
         then errorNotExpectedEOL(block.line.getLast(), "")
 
-func compileReturn(returnBlock, namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = returnBlock == Block & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = [UInt8]
+func compileReturn(returnBlock Block, namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     returnBlock.noSubBlocks!()
     resultOperandBox .= namedOperands["result"]
     resultOperand .=  select(resultOperandBox.item?(), resultOperandBox[].operand, Operand)
@@ -580,13 +502,7 @@ func compileReturn(returnBlock, namedOperands, :registersCount, :waitingFunction
         select(resultOperand.value == "", "\treturn;\n", "\treturn result_;\n"))
     }
 
-func compileFor(forBlock, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = forBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileFor(forBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     breakCounter++
     continueCounter++
     result = "\t{\n"
@@ -641,13 +557,7 @@ func compileFor(forBlock, currentLevel, :namedOperands, :registersCount, :breakC
         then result += "\tif (__continueCounter != 0) {\n\t__continueCounter--;\n\tif (__continueCounter == 0) {\n\tcontinue;\n\t} else {break;}\n\t}\n"
     result += "\t}\n"
 
-func compileBreak(breakBlock, currentLevel, namedOperands, :registersCount, breakCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = breakBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & breakCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileBreak(breakBlock Block, currentLevel UInt64, namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, breakCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     breakBlock.noSubBlocks!()
     deep := 1
     if breakBlock.line.getLength() != 1
@@ -669,13 +579,7 @@ func compileBreak(breakBlock, currentLevel, namedOperands, :registersCount, brea
         then result = "\t__breakCounter = ".join((deep - 1).toString(), ";\n")
     result:join(namedOperands.freeOperands(currentLevel, registersCount, waitingFunctions, data, compiledData), "\tbreak;\n")
 
-func compileContinue(continueBlock, currentLevel, namedOperands, :registersCount, continueCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = continueBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileContinue(continueBlock Block, currentLevel UInt64, namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     continueBlock.noSubBlocks!()
     deep := 1
     if continueBlock.line.getLength() != 1
@@ -697,13 +601,7 @@ func compileContinue(continueBlock, currentLevel, namedOperands, :registersCount
         then result = "\t__continueCounter = ".join((deep - 1).toString(), ";\n")
     result:join(namedOperands.freeOperands(currentLevel, registersCount, waitingFunctions, data, compiledData), select(deep == 1, "\tcontinue;\n", "\tbreak;\n"))
 
-func compileMif(mifBlock, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = mifBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileMif(mifBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     mifBlock.eol!(1)
     mifBlock.subBlocks!()
     tmpOperands := Map([UInt8], Operand)
@@ -770,13 +668,7 @@ func compileMif(mifBlock, currentLevel, :namedOperands, :registersCount, :breakC
         then result += "\tif (__continueCounter != 0) {break;}\n"
     result += "\t}\n"
 
-func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = caseBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileCase(caseBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     caseBlock.subBlocks!()
     tokenIndex := caseBlock.line.getLength() - 1
     caseBlock.next!(tokenIndex, "of")
@@ -970,9 +862,7 @@ func compileCase(caseBlock, currentLevel, :namedOperands, :registersCount, :brea
     if continueCounter != 0
         then result += "\tif (__continueCounter != 0) {break;}\n"
 
-proc compileEnslave(enslaveBlock, currentLevel, :namedOperands)
-    rules
-        final = enslaveBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
+proc compileEnslave(enslaveBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand))
     tokenIndex := 1
     enslaveBlock.noSubBlocks!()
     enslaveBlock.next!(tokenIndex, "(")
@@ -990,13 +880,7 @@ proc compileEnslave(enslaveBlock, currentLevel, :namedOperands)
                     return
             errorNotExist(variableName, "variable")
 
-func compileIf(ifBlock, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = ifBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileIf(ifBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     result = "\t{\n"
     tmpOperands := Map([UInt8], Operand)
     ifBlock.subBlocks!()
@@ -1057,13 +941,7 @@ func compileIf(ifBlock, currentLevel, :namedOperands, :registersCount, :breakCou
         then result += namedOperands:deleteLevel(currentLevel + 2, registersCount, waitingFunctions, data, compiledData)
     result:join("\t}\n", namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n")
 
-func compileFlag(flagBlock, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = flagBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileFlag(flagBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     result = "\t{\n"
     flagBlock.subBlocks!()
     tokenIndex := 0
@@ -1106,13 +984,7 @@ func compileFlag(flagBlock, currentLevel, :namedOperands, :registersCount, :brea
             result += namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData)
     result += "\t#endif\n\t}\n"
 
-func compileHaveLink(haveLinkBlock, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = haveLinkBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileHaveLink(haveLinkBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     tokenIndex := 1
     haveLinkBlock.next!(tokenIndex, "?")
     names_types .= namedOperands.getAllNamesAndTypes()
@@ -1147,13 +1019,7 @@ func compileHaveLink(haveLinkBlock, currentLevel, :namedOperands, :registersCoun
             result += namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData)
     result += "\t}\n"
 
-func compileParse(parseBlock, currentLevel, :namedOperands, :registersCount, :breakCounter, :continueCounter, :waitingFunctions, data, :compiledData)
-    rules
-        1 = parseBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & breakCounter == UInt64 & continueCounter == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileParse(parseBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     tokenIndex := 1
     keyName := Token
     if !parseBlock.next?(tokenIndex, "_")
@@ -1234,10 +1100,7 @@ func compileParse(parseBlock, currentLevel, :namedOperands, :registersCount, :br
         then result += "\tif (__continueCounter != 0) {\n\t__continueCounter--;\n\tif (__continueCounter == 0) {\n\tcontinue;\n\t} else {break;}\n\t}\n"
     result += "\t}\n"
 
-func insertCBlock(cBlock, namedOperands, data, :compiledData)
-    rules
-        final = cBlock == Block  & namedOperands == Map([UInt8], NamedOperand) & data == Data & compiledData == CompiledData
-        result = [UInt8]
+func insertCBlock(cBlock Block, namedOperands Map([UInt8], NamedOperand), data Data, :compiledData CompiledData) [UInt8]
     newLine := ""
     fakeBlock := Block
     parse _, line <- cBlock.line.getAllExceptFirst()
@@ -1258,13 +1121,7 @@ func insertCBlock(cBlock, namedOperands, data, :compiledData)
             else newLine = line[]
         result:join("\t", newLine, "\n")
 
-func compileEqExpression(expressionBlock, namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = expressionBlock == Block & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])]
-        3 = data == Data & compiledData == CompiledData
-        final = 1 & 2 & 3
-        result = [UInt8]
+func compileEqExpression(expressionBlock Block, namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     expressionBlock.noSubBlocks!()
     tokenIndex := 0
     tmpOperands := Map([UInt8], Operand)
@@ -1307,12 +1164,7 @@ func compileEqExpression(expressionBlock, namedOperands, :registersCount, :waiti
                     expressionBlock.eol!(tokenIndex)
                     result += tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData)
 
-func compileNewVariableExpression(newVariableBlock, currentLevel, :namedOperands, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = newVariableBlock == Block & currentLevel == UInt64 & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = [UInt8]
+func compileNewVariableExpression(newVariableBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     newVariableBlock.noSubBlocks!()
     tmpOperands := Map([UInt8], Operand)
     variableDeclaration .= newVariableBlock.line[1][][0]
@@ -1346,12 +1198,9 @@ func compileNewVariableExpression(newVariableBlock, currentLevel, :namedOperands
             operand:value = variableName[] + '_'
     namedOperands:addNewOperand(variableName, operand, currentLevel)
 
-func getVariableName(block, :tokenIndex, fullCheck)
+func getVariableName(block Block, :tokenIndex UInt64, fullCheck Bool) Token
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64 & fullCheck == Bool
-        result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
     if > nameCorrect
@@ -1368,22 +1217,11 @@ func getVariableName(block, :tokenIndex, fullCheck)
     if < !nameCorrect
         then errorWrongName(result, "variable")
 
-func compileSimpleExpression(expressionBlock, namedOperands, :registersCount, :waitingFunctions, data, :compiledData, haveResult, :tokenIndex, expectedType, :tmpOperands)
-    rules
-        1 = expressionBlock == Block & namedOperands == Map([UInt8], NamedOperand)
-        2 = registersCount == UInt64 & waitingFunctions == [Pair(Function, [Operand])] & data == Data
-        3 = compiledData == CompiledData & haveResult == Bool & tokenIndex == UInt64 & expectedType == OperandType
-        final = 1 & 2 & 3 & tmpOperands == Map([UInt8], Operand)
-        result = Pair([UInt8], Operand)
+func compileSimpleExpression(expressionBlock Block, namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData, haveResult Bool, :tokenIndex UInt64, expectedType OperandType, :tmpOperands Map([UInt8], Operand)) Pair([UInt8], Operand)
     expression .= expressionBlock.getFunctionExpression(tokenIndex, namedOperands, data, compiledData)
     result = expression.compile(registersCount, waitingFunctions, data, compiledData, haveResult, expectedType, tmpOperands)
 
-func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :compiledData)
-    rules
-        1 = expressionBlock == Block & tokenIndex == UInt64
-        2 = namedOperands == Map([UInt8], NamedOperand) & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = FunctionExpression
+func getFunctionExpression(expressionBlock Block, :tokenIndex UInt64, namedOperands Map([UInt8], NamedOperand), data Data, :compiledData CompiledData) FunctionExpression
     previous := pif_Nothing
     minus := Token
     expressionBlock.notEOL!(tokenIndex)
@@ -1787,12 +1625,7 @@ func getFunctionExpression(expressionBlock, :tokenIndex, namedOperands, data, :c
             tokenIndex--
             errorNotExpectedToken(expressionBlock.line[tokenIndex], "")
 
-func getOperandCreator(expressionBlock, :tokenIndex, namedOperands, data, :compiledData)
-    rules
-        1 = expressionBlock == Block & tokenIndex == UInt64
-        2 = namedOperands == Map([UInt8], NamedOperand) & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = OperandCreator
+func getOperandCreator(expressionBlock Block, :tokenIndex UInt64, namedOperands Map([UInt8], NamedOperand), data Data, :compiledData CompiledData) OperandCreator
     names_types .= namedOperands.getAllNamesAndTypes()
     result:type = expressionBlock.getOperandType(tokenIndex, names_types.first, false, true)
     realType .= result.type.toRealOperandType(names_types.first, names_types.second)
@@ -1817,10 +1650,7 @@ func getOperandCreator(expressionBlock, :tokenIndex, namedOperands, data, :compi
                         expressionBlock.next!(tokenIndex, "}")
                         break
 
-func toCSwitch(suffixes, prefix, items, allVariants)
-    rules
-        final = suffixes == [[UInt8]] & prefix == [UInt8] & items == [UInt8] & allVariants == Map([UInt8], UInt64)
-        result = [UInt8]
+func toCSwitch(suffixes [[UInt8]], prefix [UInt8], items [UInt8], allVariants Map([UInt8], UInt64)) [UInt8]
     result = "\tswitch (".join(items, "[", prefix.getLength().toString(), "]) {\n")
     if suffixes[0].getLength() == 1
         then parse _, suffix <- suffixes
@@ -1836,12 +1666,9 @@ func toCSwitch(suffixes, prefix, items, allVariants)
                     then result:join("\tcase ", head.toString(), ":\n\t{\n", tails.toCSwitch(prefix + head.convertTo(UInt8), items, allVariants), "\t}\n\tbreak;\n")
     result += "\t}\n"
 
-func getFlagName(block, :tokenIndex)
+func getFlagName(block Block, :tokenIndex UInt64) Token
     attributes
         alwaysInline
-    rules
-        final = block == Block & tokenIndex == UInt64
-        result = Token
     result = block.next(tokenIndex)
     nameCorrect := result[][0].lower?()
     if > nameCorrect

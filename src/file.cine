@@ -1,9 +1,4 @@
-func getBlock(file, levelError, expectedLevel, fileName, fileIndex, :lineIndex)
-    rules
-        1 = file == [[UInt8]] & levelError == Bool & expectedLevel == UInt64
-        2 = fileName == [UInt8] & fileIndex == UInt64 & lineIndex == UInt64
-        final = 1 & 2
-        result = Box(Block)
+func getBlock(file [[UInt8]], levelError Bool, expectedLevel UInt64, fileName [UInt8], fileIndex UInt64, :lineIndex UInt64) Box(Block)
     lineIndex = file.getFirstNotEmptyLineIndex(fileName, lineIndex)
     if lineIndex < file.getLength()
         then
@@ -68,22 +63,14 @@ func getBlock(file, levelError, expectedLevel, fileName, fileIndex, :lineIndex)
                                         rightEdgeOfMultiString = 0
                     result = Box(Block).create(Block{line: tokens, subBlocks: file.getSubBlocks(expectedLevel + 1, fileName, fileIndex, lineIndex)})
 
-func getFirstNotEmptyLineIndex(file, fileName, currentLineIndex)
-    rules
-        final = file == [[UInt8]] & fileName == [UInt8] & currentLineIndex == UInt64
-        result = UInt64
+func getFirstNotEmptyLineIndex(file [[UInt8]], fileName [UInt8], currentLineIndex UInt64) UInt64
     result = currentLineIndex
     for result < file.getLength()
         if line .= file[result]; mutUInt64 := 0; line != "" && getToken(line, fileName, 0, currentLineIndex, mutUInt64).item?()
             then break
         result++
 
-func getCCode(file, expectedLevel, fileName, fileIndex, :lineIndex)
-    rules
-        1 = file == [[UInt8]] & expectedLevel == UInt64 & fileName == [UInt8]
-        2 = fileIndex == UInt64 & lineIndex == UInt64
-        final = 1 & 2
-        result = [Token]
+func getCCode(file [[UInt8]], expectedLevel UInt64, fileName [UInt8], fileIndex UInt64, :lineIndex UInt64) [Token]
     line := file[lineIndex]
     line.level!(expectedLevel, fileName, lineIndex)
     result += Token{value: "C"}
@@ -97,12 +84,7 @@ func getCCode(file, expectedLevel, fileName, fileIndex, :lineIndex)
         result += Token{value: line.getAllExceptFirstN(currentLevel * 4), file: fileName, fileIndex: fileIndex, line: lineIndex, row: currentLevel * 4}
         lineIndex++
 
-func getCLibs(file, expectedLevel, fileName, fileIndex, :lineIndex)
-    rules
-        1 = file == [[UInt8]] & expectedLevel == UInt64 & fileName == [UInt8]
-        2 = fileIndex == UInt64 & lineIndex == UInt64
-        final = 1 & 2
-        result = [Token]
+func getCLibs(file [[UInt8]], expectedLevel UInt64, fileName [UInt8], fileIndex UInt64, :lineIndex UInt64) [Token]
     line := file[lineIndex]
     line.level!(expectedLevel, fileName, lineIndex)
     result += Token{value: "include"}
@@ -116,12 +98,7 @@ func getCLibs(file, expectedLevel, fileName, fileIndex, :lineIndex)
         result += Token{value: line.getAllExceptFirstN(currentLevel * 4), file: fileName, fileIndex: fileIndex, line: lineIndex, row: currentLevel * 4}
         lineIndex++
 
-func getSubBlocks(file, expectedLevel, fileName, fileIndex, :lineIndex)
-    rules
-        1 = file == [[UInt8]] & expectedLevel == UInt64 & fileName == [UInt8]
-        2 = fileIndex == UInt64 & lineIndex == UInt64
-        final = 1 & 2
-        result = [Block]
+func getSubBlocks(file [[UInt8]], expectedLevel UInt64, fileName [UInt8], fileIndex UInt64, :lineIndex UInt64) [Block]
     for
         if block .= file.getBlock(false, expectedLevel, fileName, fileIndex, lineIndex); block.item?()
             then result += block[]

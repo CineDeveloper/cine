@@ -1,21 +1,13 @@
-func getLevel(line)
+func getLevel(line [UInt8]) UInt64
     attributes
         alwaysInline
-    rules
-        final = line == [UInt8]
-        result = UInt64
     parse index, char <- line
         if char != ' '
             then
                 result = index / 4
                 break
 
-func getAllTokens(line, file, fileIndex, lineIndex, currentLevel)
-    rules
-        1 = line == [UInt8] & file == [UInt8]
-        2 = fileIndex == UInt64 & lineIndex == UInt64 & currentLevel == UInt64
-        final = 1 & 2
-        result = [Token]
+func getAllTokens(line [UInt8], file [UInt8], fileIndex UInt64, lineIndex UInt64, currentLevel UInt64) [Token]
     rowIndex := currentLevel * 4
     for rowIndex < line.getLength()
         if line[rowIndex] != ' '
@@ -26,12 +18,7 @@ func getAllTokens(line, file, fileIndex, lineIndex, currentLevel)
             then result += token[]
             else break
 
-func getToken(line, file, fileIndex, lineIndex, :rowIndex)
-    rules
-        1 = line == [UInt8] & file == [UInt8]
-        2 = fileIndex == UInt64 & lineIndex == UInt64 & rowIndex == UInt64
-        final = 1 & 2
-        result = Box(Token)
+func getToken(line [UInt8], file [UInt8], fileIndex UInt64, lineIndex UInt64, :rowIndex UInt64) Box(Token)
     resultToken := Token{file: file, fileIndex: fileIndex, line: lineIndex}
     nameFound := false
     symbolsFound := false
@@ -113,10 +100,8 @@ func getToken(line, file, fileIndex, lineIndex, :rowIndex)
     resultToken:value:setStringFlag()
     result:put(resultToken)
 
-proc level!(line, expectedLevel, file, lineIndex)
+proc level!(line [UInt8], expectedLevel  UInt64, file [UInt8], lineIndex  UInt64)
     attributes
         alwaysInline
-    rules
-        final = line == [UInt8] & expectedLevel == UInt64 & file == [UInt8] & lineIndex == UInt64
     if currentLevel .= line.getLevel(); < currentLevel != expectedLevel
         then errorWrongLevel(file, lineIndex + 1, expectedLevel, currentLevel)

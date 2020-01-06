@@ -2,11 +2,8 @@ type FunctionTypeArgument
     type OperandType
     mutable Bool
 
-func toOperandsTypes(arguments)
+func toOperandsTypes(arguments [FunctionTypeArgument]) [OperandType]
     attributes
         alwaysInline
-    rules
-        final = arguments == [FunctionTypeArgument]
-        result = [OperandType]
     parse _, argument <- arguments
         result += argument.type

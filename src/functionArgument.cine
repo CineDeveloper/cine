@@ -3,11 +3,8 @@ type FunctionArgument
     type OperandType
     mutable Bool
 
-func toStrings(arguments)
+func toStrings(arguments [FunctionArgument]) [[UInt8]]
     attributes
         alwaysInline
-    rules
-        final = arguments == [FunctionArgument]
-        result = [[UInt8]]
     parse _, argument <- arguments
         result += argument.name

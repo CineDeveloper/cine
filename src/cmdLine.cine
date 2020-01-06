@@ -1,15 +1,11 @@
-func version()
+func version() [UInt8]
     attributes
         alwaysInline
-    rules
-        result = [UInt8]
     result = "0.1"
 
-func helpMessage()
+func helpMessage() [UInt8]
     attributes
         alwaysInline
-    rules
-        result = [UInt8]
     result = "Cine compiler\n"{
         "\t-i or --input FILE_NAMES - set input file names(space is separator)\n"
         "\t-o or --output FILE_NAME - set output file name\n"
@@ -18,9 +14,7 @@ func helpMessage()
         "\t-v or --version - show version\n"
     }
 
-func getFiles()
-    rules
-        result = Triple([[UInt8]], [UInt8], [UInt8])
+func getFiles() Triple([[UInt8]], [UInt8], [UInt8])
     gettingInput := false
     gettingOutput := false
     gettingFlags := false
@@ -67,18 +61,14 @@ func getFiles()
             if result.first.getLength() == 0  || result.second == "" || result.third == ""
                 then showMessage(helpMessage())
 
-proc onlyOne!(argument)
+proc onlyOne!(argument [UInt8])
     attributes
         alwaysInline
-    rules
-        final = argument == [UInt8]
     if < getCMDArgumetsCount() != 1
         then errorUnnecessaryArgument(argument)
 
-proc showMessage(message)
+proc showMessage(message [UInt8])
     attributes
         noInline
-    rules
-        final = message == [UInt8]
     message.printLn()
     exit()

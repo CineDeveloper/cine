@@ -5,20 +5,14 @@ type Operand
     typeNumber UInt64
     mutable, constant, haveLink Bool
 
-func toReadOnly(operand)
-    rules
-        final = operand == Operand
-        result = Operand
+func toReadOnly(operand Operand) Operand
     result = operand
     if result.mutable
         then
             result:mutable = false
             result:value = select(result.value[0] == '&', result.value.getAllExceptFirst(), "(*".join(result.value, ")"))
 
-func getMainObjectName(operand)
-    rules
-        final = operand == Operand
-        result = [UInt8]
+func getMainObjectName(operand Operand) [UInt8]
     beginIndex := 0
     endEdge := 0
     if !operand.value.contain?('{')
@@ -37,12 +31,9 @@ func getMainObjectName(operand)
             endEdge += beginIndex + 1
             result = operand.value.getSlice(beginIndex, endEdge)
 
-func createNewRegister(:registersCount, mutable, cType, value)
+func createNewRegister(:registersCount UInt64, mutable Bool, cType [UInt8], value [UInt8]) Pair([UInt8], [UInt8])
     attributes
         alwaysInline
-    rules
-        final = registersCount == UInt64 & mutable == Bool & cType == [UInt8] & value == [UInt8]
-        result = Pair([UInt8], [UInt8])
     result:second = "__r" + registersCount.toString()
     result:first = "\t".join(cType, select(mutable, " ", " const "), result:second)
     if value != ""
@@ -50,39 +41,24 @@ func createNewRegister(:registersCount, mutable, cType, value)
     result:first += ";\n"
     registersCount++
 
-func freeOperands(:tmpOperands, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = tmpOperands == Map([UInt8],Operand) & registersCount == UInt64
-        2 = waitingFunctions == [Pair(Function,[Operand])] & compiledData == CompiledData
-        final = 1 & 2
-        result = [UInt8]
+func freeOperands(:tmpOperands Map([UInt8], Operand), :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     if tmpOperands.getLength() != 0
         then
             parse _, operand <- tmpOperands
                 result += operand.freeOperand(registersCount, waitingFunctions, data, compiledData)
             tmpOperands = #tmpOperands
 
-func toOperandsTypes(operands)
+func toOperandsTypes(operands [Operand]) [OperandType]
     attributes
         alwaysInline
-    rules
-        final = operands == [Operand]
-        result = [OperandType]
     parse _, operand <- operands
         result += operand.type
 
-proc put(:tmpOperands, operand)
-    rules
-        final = tmpOperands == Map([UInt8], Operand) & operand == Operand
+proc put(:tmpOperands Map([UInt8], Operand), operand Operand)
     if operand.value != ""
         then tmpOperands:add(operand.value, operand)
 
-func useOperand(operand, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = operand == Operand & registersCount == UInt64
-        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = [UInt8]
+func useOperand(operand Operand, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     if operand.haveLink && !(operand.constant || operand.type.function?())
         then
             roOperand .= operand.toReadOnly()
@@ -90,12 +66,7 @@ func useOperand(operand, :registersCount, :waitingFunctions, data, :compiledData
                 .toOperand(registersCount, waitingFunctions, false, data, compiledData).first
             }
 
-func freeOperand(operand, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = operand == Operand & registersCount == UInt64
-        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = [UInt8]
+func freeOperand(operand Operand, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     if operand.haveLink && !(operand.constant || operand.type.function?())
         then
             roOperand .= operand.toReadOnly()
@@ -103,12 +74,7 @@ func freeOperand(operand, :registersCount, :waitingFunctions, data, :compiledDat
                 .toOperand(registersCount, waitingFunctions, false, data, compiledData).first
             }
 
-func cloneMembers(operand, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = operand == Operand & registersCount == UInt64
-        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = Pair([UInt8], Operand)
+func cloneMembers(operand Operand, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) Pair([UInt8], Operand)
     operandType .= operand.type.compile(data, compiledData)
     code_register .= registersCount:createNewRegister(true, operand.cType, "(".join(operand.cType, "){0}"))
     code := code_register.first
@@ -132,12 +98,7 @@ func cloneMembers(operand, :registersCount, :waitingFunctions, data, :compiledDa
     resultOperand:expressionForErrors:value = "clone(".join(resultOperand.expressionForErrors[], ")")
     result = #result.create(code, resultOperand)
 
-func freeMembers(operand, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = operand == Operand & registersCount == UInt64
-        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = [UInt8]
+func freeMembers(operand Operand, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     operandType .= operand.type.compile(data, compiledData)
     parse name, type <- operandType.members
         memberType .= type.compile(data, compiledData)
@@ -151,12 +112,7 @@ func freeMembers(operand, :registersCount, :waitingFunctions, data, :compiledDat
         }
         result += memberOperand.freeOperand(registersCount, waitingFunctions, data, compiledData)
 
-func useMembers(operand, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = operand == Operand & registersCount == UInt64
-        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = [UInt8]
+func useMembers(operand Operand, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     operandType .= operand.type.compile(data, compiledData)
     parse name, type <- operandType.members
         memberType .= type.compile(data, compiledData)
@@ -170,12 +126,7 @@ func useMembers(operand, :registersCount, :waitingFunctions, data, :compiledData
         }
         result += memberOperand.useOperand(registersCount, waitingFunctions, data, compiledData)
 
-func setOperand(destionation, source, :registersCount, :waitingFunctions, data, :compiledData)
-    rules
-        1 = destionation == Operand & source == Operand & registersCount == UInt64
-        2 = waitingFunctions == [Pair(Function, [Operand])] & data == Data & compiledData == CompiledData
-        final = 1 & 2
-        result = [UInt8]
+func setOperand(destionation Operand, source Operand, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     if < !destionation.mutable
         then errorExpectMutable(destionation.expressionForErrors)
     if < destionation.type != source.type

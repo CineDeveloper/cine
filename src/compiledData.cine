@@ -6,9 +6,7 @@ type CompiledData
     mainFunctionCName [UInt8]
     flags Map([UInt8], [UInt8])
 
-proc writeToFile(compiledData, outputFileName, flagsFileName)
-    rules
-        final = compiledData == CompiledData & outputFileName == [UInt8] & flagsFileName == [UInt8]
+proc writeToFile(compiledData CompiledData, outputFileName [UInt8], flagsFileName [UInt8])
     outputFile := ""
     bltInCLibs .= [[UInt8]]{"#include <stdlib.h>", "#include <stdio.h>", "#include <stddef.h>", "#include <inttypes.h>", "#include <time.h>", "#include <stdbool.h>"}
     parse _, cLib <- bltInCLibs

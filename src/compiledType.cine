@@ -6,9 +6,7 @@ type CompiledType
     c, haveLink Bool
     typeNumber UInt64
 
-proc executeGlobalRules(:compiledType, type, data, :compiledData)
-    rules
-        final = compiledType == CompiledType & type == OperandType & data == Data & compiledData == CompiledData
+proc executeGlobalRules(:compiledType CompiledType, type OperandType, data Data, :compiledData CompiledData)
     typeToken .= type.toToken()
     repeat := true
     for repeat
