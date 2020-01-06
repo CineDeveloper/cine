@@ -86,7 +86,7 @@ func compile(type OperandType, data Data, :compiledData CompiledData, :compiling
                         result:haveLink = result.haveLink || memberCompiledType.haveLink
                         sortedMembers += memberCompiledType.align.toString().join(memberCompiledType.cType, " ", member.name[])
                         result:members:add(member.name[], memberType[])
-                    sortedMembers:sort(@func(private_memberLessFunc)([UInt8], [UInt8]))
+                    sortedMembers:sort(builtInGetFunctionByID("private member less function (standart module)", @([UInt8], [UInt8]) -> Bool))
                     parse _, member <- sortedMembers
                         cStructDef:join(member.getAllExceptFirst(), "_; ")
                     cStructDef = cStructDef.getAllExceptLast()
@@ -98,7 +98,9 @@ func compile(type OperandType, data Data, :compiledData CompiledData, :compiling
     compilingTypes -= typeToken[]
     result:executeGlobalRules(type, data, compiledData)
 
-func private_memberLessFunc(a [UInt8], b a) Bool
+func unnamed(a [UInt8], b a) Bool #1
+    attributes
+        id = "private member less function (standart module)"
     result = (a >= b || a[0] == '0') && b[0] != '0'
 
 func function?(type OperandType) Bool

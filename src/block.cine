@@ -1324,10 +1324,13 @@ func getFunctionExpression(expressionBlock Block, :tokenIndex UInt64, namedOpera
                         tokenIndex--
                         _ = expressionBlock.getString(tokenIndex)
                         expressionBlock.next!(tokenIndex, ",")
-                        function .= BuiltInGetFunctionByID {id: id, type: expressionBlock.getOperandType(tokenIndex, namedOperands.getAllNamesAndTypes().first, false, false)}
+                        names_types .= namedOperands.getAllNamesAndTypes()
+                        functionType .= expressionBlock.getOperandType(tokenIndex, names_types.first, true, true)
+                        typeBox .= functionType.toRealOperandType(names_types.first, names_types.second)
+                        if < typeBox.empty?() || !typeBox[].function?()
+                            then errorWrongType(functionType.toToken())
+                        function .= BuiltInGetFunctionByID {id: id, type: typeBox[]}
                         expressionBlock.next!(tokenIndex, ")")
-                        if !function.type.function?()
-                            then errorWrongType(function.type.toToken())
                         result:expression += function.toFluid()
                         previous = pif_Operand
                     else errorNotExpectedToken(token, "")
