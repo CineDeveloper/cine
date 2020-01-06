@@ -127,6 +127,7 @@ func cloneMembers(operand, compilingFunction, :registersCount, :waitingFunctions
     resultOperand:static = false
     resultOperand:constant = false
     resultOperand:expressionForErrors:value = "clone(".join(resultOperand.expressionForErrors[], ")")
+    result = Pair([UInt8], Operand).create(code, resultOperand)
 
 func freeMembers(operand, compilingFunction, :registersCount, :waitingFunctions, data, :compiledData)
     rules
