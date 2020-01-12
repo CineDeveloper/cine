@@ -58,10 +58,16 @@ func compile(expression RuleExpression, registers [Bool], currentRegisterIndex U
                             leftType .= OperandType{baseType: expression[][index - 1][RuleFunctionArgument].argument}.toRealOperandType(argumentsNames, argumentsTypes)
                             if leftType.empty?()
                                 then return Box(Bool)
-                            righType .= expression[][index + 1][RuleType].type.toRealOperandType(argumentsNames, argumentsTypes)
-                            if righType.empty?()
-                                then return Box(Bool)
-                            return Box(Bool).create((leftType[] == righType[]) == (operator == "=="))
+                            type .= expression[][index + 1][RuleType].type
+                            if type.baseType[] == "@func" || type.baseType[] == "@proc"
+                                then if leftType[].function?()
+                                    then return Box(Bool).create((type.baseType[] == "@func") == (leftType[].functionType.result.getLength() == 1))
+                                    else return Box(Bool).create(false)
+                                else
+                                    righType .= type.toRealOperandType(argumentsNames, argumentsTypes)
+                                    if righType.empty?()
+                                        then return Box(Bool)
+                                    return Box(Bool).create((leftType[] == righType[]) == (operator == "=="))
                         priority == UInt8 && operator == ">"
                             argumentType .= OperandType{baseType: expression[][index - 1][RuleFunctionArgument].argument}.toRealOperandType(argumentsNames, argumentsTypes)
                             if argumentType.empty?()

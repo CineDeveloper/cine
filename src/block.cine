@@ -345,6 +345,14 @@ func getFunctionArguments(block Block, :tokenIndex UInt64) [FunctionArgument]
                 groupName .= block.next(tokenIndex)
                 groupName!(groupName)
                 type:baseType = groupName.replaceValue(">" + groupName[])
+            block.next?(tokenIndex, "@")
+                if block.next?(tokenIndex, "func", "proc")
+                    then
+                        type:baseType = block.line[tokenIndex - 2]
+                        type:baseType:value += block.line[tokenIndex - 1][]
+                        break
+                    else tokenIndex--
+                fallthrough
             default
                 type = block.getOperandType(tokenIndex, argumentsNames, true, true)
         result += FunctionArgument{name: name[], mutable:mutable, type: type}
@@ -437,8 +445,17 @@ func getRuleExpression(rule Block, :tokenIndex UInt64, argumentsNames [[UInt8]],
                 if > previous == pir_Argument
                     then
                         result:expression += RuleOperator{operator: token}.toFluid()
-                        type .= rule.getOperandType(tokenIndex, argumentsNames, true, true)
-                        type.type!(data)
+                        type := OperandType
+                        if rule.next?(tokenIndex, "@")
+                            then if rule.next?(tokenIndex, "func", "proc")
+                                then
+                                    type:baseType = rule.line[tokenIndex - 2]
+                                    type:baseType:value += rule.line[tokenIndex - 1][]
+                                else tokenIndex--
+                        if type.empty?()
+                            then
+                                type = rule.getOperandType(tokenIndex, argumentsNames, true, true)
+                                type.type!(data)
                         if < type.baseType[] == "_"
                             then errorNotExpectedToken(type.baseType, "")
                         result:expression += RuleType{type: type}.toFluid()

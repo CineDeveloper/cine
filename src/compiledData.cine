@@ -46,8 +46,8 @@ proc writeToFile(compiledData CompiledData, outputFileName [UInt8], flagsFileNam
         "\n",
         compiledData.cFunctionSignatures,
         "\nint main(int argc, char** argv) {\n"
-        "\tif (sizeof(float) != 4 || sizeof(double) != 8) {\n"
-        "\t\tprintf(\042Only platforms in which the float type has a size of 32 bits and the double type has a size of 64 bits are supported.\\n\042);\n"
+        "\tif (sizeof(float) != 4 || sizeof(double) != 8 || sizeof(bool) != 1) {\n"
+        "\t\tprintf(\042Only platforms in which the float type has a size of 32 bits, the double type has a size of 64 bits, and the type of bool has a size of 8 bits are supported.\\n\042);\n"
         "\t}\n\tsrand(time(NULL) + ",
         UInt64.maxValue().random().toString(),
         "ull);\n\t__staticRandomNumber__ = rand();\n\t__argc = argc;\n\t__argv = argv;\n\t",
