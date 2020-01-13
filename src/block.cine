@@ -287,7 +287,7 @@ func getFunctionArgumentName(block Block, :tokenIndex UInt64, fullCheck Bool) To
         then case result[] of
             "if"; "case"; "flag"; "of"; "for"; "return"; {
                 "result"; "break"; "continue";
-                "mif"; "parse"; "true"; "false"
+                "mif"; "parse"; "true"; "false"; "enslave"
             }
                 nameCorrect = false
             default
@@ -322,7 +322,7 @@ func getFunctionName(block Block, :tokenIndex UInt64, fullCheck Bool) Token
         then result:value += block.line[tokenIndex - 1][]
     if nameCorrect && fullCheck
         then case result[] of
-            "func"; "proc"; "enslave"; "select"; "if"; "case"; "for"; "return"; "result"
+            "func"; "proc"; "select"; "if"; "case"; "for"; "return"; "result"
                 nameCorrect = false
             default
                 nameCorrect = !result[].hasPrefix?("builtIn")
@@ -383,8 +383,6 @@ func compile(functionExpression Block, currentLevel UInt64, :namedOperands Map([
             result = functionExpression.compileMif(currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
         "case"
             result = functionExpression.compileCase(currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
-        "enslave"
-            functionExpression.compileEnslave(currentLevel, namedOperands)
         "if"
             result = functionExpression.compileIf(currentLevel, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
         "flag"
@@ -396,14 +394,12 @@ func compile(functionExpression Block, currentLevel UInt64, :namedOperands Map([
         "C"
             result = functionExpression.insertCBlock(namedOperands, data, compiledData)
         default
-            isEqExpression := true
+            isNewVariable := false
             if functionExpression.line.getLength() > 1
-                then case functionExpression.line[1][] of
-                    ":="; ".="
-                        isEqExpression = false
-            if isEqExpression
-                then result = functionExpression.compileEqExpression(namedOperands, registersCount, waitingFunctions, data, compiledData)
-                else result = functionExpression.compileNewVariableExpression(currentLevel, namedOperands, registersCount, waitingFunctions, data, compiledData)
+                then isNewVariable = functionExpression.line[1][] == ":=" || functionExpression.line[1][] == ".=" || functionExpression.line[0][] == "enslave"
+            if isNewVariable
+                then result = functionExpression.compileNewVariableExpression(currentLevel, namedOperands, registersCount, waitingFunctions, data, compiledData)
+                else result = functionExpression.compileEqExpression(namedOperands, registersCount, waitingFunctions, data, compiledData)
 
 func getRuleExpression(rule Block, :tokenIndex UInt64, argumentsNames [[UInt8]], data Data) RuleExpression
     rule.notEOL!(tokenIndex)
@@ -879,24 +875,6 @@ func compileCase(caseBlock Block, currentLevel UInt64, :namedOperands Map([UInt8
     if continueCounter != 0
         then result += "\tif (__continueCounter != 0) {break;}\n"
 
-proc compileEnslave(enslaveBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand))
-    tokenIndex := 1
-    enslaveBlock.noSubBlocks!()
-    enslaveBlock.next!(tokenIndex, "(")
-    variableName .= enslaveBlock.getVariableName(tokenIndex, false)
-    enslaveBlock.next!(tokenIndex, ")")
-    enslaveBlock.eol!(tokenIndex)
-    if operandBox .= namedOperands[variableName[]]; < operandBox.empty?()
-        then errorNotExist(variableName, "variable")
-        else
-            operand := operandBox[]
-            if > operand.level == currentLevel
-                then
-                    operand:enslaved = true
-                    namedOperands:add(variableName[], operand)
-                    return
-            errorNotExist(variableName, "variable")
-
 func compileIf(ifBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     result = "\t{\n"
     tmpOperands := Map([UInt8], Operand)
@@ -1184,11 +1162,10 @@ func compileEqExpression(expressionBlock Block, namedOperands Map([UInt8], Named
 func compileNewVariableExpression(newVariableBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     newVariableBlock.noSubBlocks!()
     tmpOperands := Map([UInt8], Operand)
-    variableDeclaration .= newVariableBlock.line[1][][0]
-    mutable .= variableDeclaration == ':'
     tokenIndex := 0
+    enslave_ .= newVariableBlock.next?(tokenIndex, "enslave")
     variableName .= newVariableBlock.getVariableName(tokenIndex, true)
-    tokenIndex++
+    mutable .= newVariableBlock.next(tokenIndex)[] == ":="
     code_operand .= newVariableBlock.compileSimpleExpression(namedOperands, registersCount, waitingFunctions, data, compiledData, true, tokenIndex, OperandType, tmpOperands)
     newVariableBlock.eol!(tokenIndex)
     operand := code_operand.second
@@ -1202,18 +1179,22 @@ func compileNewVariableExpression(newVariableBlock Block, currentLevel UInt64, :
     result += tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData)
     if mutable
         then
-            if operand.cType.getLast() == '*'
-                then result:join("\t", operand.cType, " ", variableName[], "_ = (", operand.cType, ")(", operand.value + ");\n")
-                else result:join("\t", operand.cType, " ", variableName[], "_ = ", operand.value, ";\n")
+            mif
+                operand.cType.getLast() == '*'
+                    result:join("\t", operand.cType, " ", variableName[], "_ = (", operand.cType, ")(", operand.value + ");\n")
+                operand.type.function?()
+                    result:join("\t", operand.cType, " ", variableName[], "_ = (const ", operand.cType, ")(", operand.value + ");\n")
+                default
+                    result:join("\t", operand.cType, " ", variableName[], "_ = ", operand.value, ";\n")
             operand:value = "&".join(variableName[], "_")
             operand:mutable = true
             operand:constant = false
         else
-            if variableDeclaration == '.' && operand.type.function?()
+            if operand.cType.getLast() == '*' || operand.type.function?()
                 then result:join("\t", operand.cType, " const ", variableName[], "_ = (const ", operand.cType, ")(", operand.value, ");\n")
                 else result:join("\t", operand.cType, " const ", variableName[], "_ = ", operand.value, ";\n")
             operand:value = variableName[] + '_'
-    namedOperands:addNewOperand(variableName, operand, currentLevel)
+    namedOperands:addNewOperand(variableName, operand, select(enslave_, 0, currentLevel))
 
 func getVariableName(block Block, :tokenIndex UInt64, fullCheck Bool) Token
     attributes
@@ -1227,7 +1208,7 @@ func getVariableName(block Block, :tokenIndex UInt64, fullCheck Bool) Token
             nameCorrect = nameCorrect && !result[].contain?("__")
     if nameCorrect && fullCheck
         then case result[] of
-            "if"; "case"; "flag"; "of"; "for"; "return"; "result"; "break"; "continue"; "mif"; "parse"; "true"; "false"
+            "if"; "case"; "flag"; "of"; "for"; "return"; "result"; "break"; "continue"; "mif"; "parse"; "true"; "false"; "enslave"
                 nameCorrect = false
             default
                 nameCorrect = !result[].hasPrefix?("builtIn")

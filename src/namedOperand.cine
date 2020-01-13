@@ -1,7 +1,6 @@
 type NamedOperand
     level UInt64
     operand Operand
-    enslaved Bool
 
 func deleteLevel(:namedOperands Map([UInt8], NamedOperand), level UInt64, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     result = namedOperands.freeOperands(level, registersCount, waitingFunctions, data, compiledData)
@@ -10,8 +9,7 @@ func deleteLevel(:namedOperands Map([UInt8], NamedOperand), level UInt64, :regis
 func freeOperands(namedOperands Map([UInt8], NamedOperand), level UInt64, :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     parse _, namedOperand <- namedOperands
         if namedOperand.level >= level
-            then if !namedOperand.enslaved
-                then result += namedOperand.operand.freeOperand(registersCount, waitingFunctions, data, compiledData)
+            then result += namedOperand.operand.freeOperand(registersCount, waitingFunctions, data, compiledData)
 
 proc deleteOperands(:namedOperands Map([UInt8], NamedOperand), level UInt64)
     newNamedOperands := Map([UInt8], NamedOperand)
