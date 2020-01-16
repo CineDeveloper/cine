@@ -49,7 +49,7 @@ type FunctionOperand
     haveResult Bool
 
 type FunctionOperandCall
-    operand Operand
+    expression FunctionExpression
     arguments [FunctionExpression]
 
 type BuiltInCallFunctionByID
@@ -394,18 +394,22 @@ func compute0PriorityOperations(expression FunctionExpression, :registersCount U
                 result:put(Pair([UInt8], Operand).create("", resultOperand))
                 return
             FunctionOperandCall
-                code := ""
                 resultOperand := Operand
                 functionOperandCall .= expressionPart[FunctionOperandCall]
-                expressionForErrors := functionOperandCall.operand.expressionForErrors
-                if < functionOperandCall.arguments.getLength() != functionOperandCall.operand.type.functionType.arguments.getLength() || (functionOperandCall.operand.type.functionType.result.getLength() == 1) != haveResult
+                code_functionOperand .= functionOperandCall.expression.compile(registersCount, waitingFunctions, data, compiledData, true, OperandType, tmpOperands)
+                code := code_functionOperand.first
+                functionOperand .= code_functionOperand.second
+                expressionForErrors := functionOperand.expressionForErrors
+                if < !functionOperand.type.function?()
+                    then errorWrongType(functionOperand.expressionForErrors)
+                if < functionOperandCall.arguments.getLength() != functionOperand.type.functionType.arguments.getLength() || (functionOperand.type.functionType.result.getLength() == 1) != haveResult
                     then errorInvalidNumberOfArguments(expressionForErrors)
                 arguments := [Operand].init(functionOperandCall.arguments.getLength())
                 parse argumentIndex, argumentExpression <- functionOperandCall.arguments
-                    code_operand .= argumentExpression.compile(registersCount, waitingFunctions, data, compiledData, true, functionOperandCall.operand.type.functionType.arguments[argumentIndex].type, tmpOperands)
+                    code_operand .= argumentExpression.compile(registersCount, waitingFunctions, data, compiledData, true, functionOperand.type.functionType.arguments[argumentIndex].type, tmpOperands)
                     code += code_operand.first
                     operand := code_operand.second
-                    if functionOperandCall.operand.type.functionType.arguments[argumentIndex].mutable
+                    if functionOperand.type.functionType.arguments[argumentIndex].mutable
                         then if < !operand.mutable
                             then errorExpectMutable(operand.expressionForErrors)
                         else if operand.mutable
@@ -420,7 +424,7 @@ func compute0PriorityOperations(expression FunctionExpression, :registersCount U
                                     mainObject2 .= argument2.getMainObjectName()
                                     if < mainObject1 != "" && mainObject1 == mainObject2
                                         then errorSeveralVariableToFunction(argument1.expressionForErrors, argument2.expressionForErrors)
-                functionCall := functionOperandCall.operand.toReadOnly().value + '('
+                functionCall := functionOperand.toReadOnly().value + '('
                 expressionForErrors:value += '('
                 if arguments.getLength() != 0
                     then
@@ -433,7 +437,7 @@ func compute0PriorityOperations(expression FunctionExpression, :registersCount U
                 expressionForErrors:value += ')'
                 if haveResult
                     then
-                        resultType .= functionOperandCall.operand.type.functionType.result[0]
+                        resultType .= functionOperand.type.functionType.result[0]
                         compiledResultType .= resultType.compile(data, compiledData)
                         code_register .= registersCount:createNewRegister(false, compiledResultType.cType, functionCall)
                         code += code_register.first

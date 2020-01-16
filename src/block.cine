@@ -1452,14 +1452,20 @@ func getFunctionExpression(expressionBlock Block, :tokenIndex UInt64, namedOpera
                         result:expression += functionOperand.toFluid()
                     else
                         functionOperandCall := FunctionOperandCall
-                        variableName .= expressionBlock.getVariableName(tokenIndex, false)
-                        if namedOperand .= namedOperands[variableName[]]; > namedOperand.item?()
+                        if expressionBlock.next?(tokenIndex, "(")
                             then
-                                functionOperandCall:operand = namedOperand[].operand
-                                functionOperandCall:operand:expressionForErrors = variableName
-                                if < !functionOperandCall.operand.type.function?()
-                                    then errorWrongType(variableName.replaceValue(functionOperandCall.operand.type.toToken()[]))
-                            else errorNotExist(variableName, "variable")
+                                functionOperandCall:expression = expressionBlock.getFunctionExpression(tokenIndex, namedOperands, data, compiledData)
+                                expressionBlock.next!(tokenIndex, ")")
+                            else
+                                variableName .= expressionBlock.getVariableName(tokenIndex, false)
+                                if namedOperand .= namedOperands[variableName[]]; > namedOperand.item?()
+                                    then
+                                        operand := namedOperand[].operand
+                                        operand:expressionForErrors = variableName
+                                        if < !operand.type.function?()
+                                            then errorWrongType(variableName.replaceValue(operand.type.toToken()[]))
+                                        functionOperandCall:expression:expression = [Fluid]{operand.toFluid()}
+                                    else errorNotExist(variableName, "variable")
                         expressionBlock.next!(tokenIndex, "(")
                         if !expressionBlock.next?(tokenIndex, ")")
                             then for
