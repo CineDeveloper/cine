@@ -1,53 +1,44 @@
 proc errorWrongCMDLineArg(argument [UInt8])
     attributes
         noInline
-    print("\042", argument, "\042 is an unknown command-line argument.\n")
-    exit()
+    panic("\042".join(argument, "\042 is an unknown command-line argument.\n"))
 
 proc errorInputFileSpecifiedSeverealTimes(file [UInt8])
     attributes
         noInline
-    print("File \042", file, "\042 is specified several times.\n")
-    exit()
+    panic("File \042".join(file, "\042 is specified several times.\n"))
 
 proc errorManyOutputFiles()
     attributes
         noInline
-    print("There should be only one file with flags.\n")
-    exit()
+    panic("There should be only one file with flags.\n")
 
 proc errorManyFlagsFiles()
     attributes
         noInline
-    print("The flags file should be only one.\n")
-    exit()
+    panic("The flags file should be only one.\n")
 
 proc errorUnnecessaryArgument(argument [UInt8])
     attributes
         noInline
-    print("The argument \042", argument, "\042 must be specified without any other arguments.\n")
-    exit()
+    panic("The argument \042".join(argument, "\042 must be specified without any other arguments.\n"))
 
 proc errorCantLoadFile(file [UInt8])
     attributes
         noInline
-    print("It is not possible to read the file \042", file, "\042.\n")
-    exit()
+    panic("It is not possible to read the file \042".join(file, "\042.\n"))
 
 proc errorWrongLevel(file [UInt8], line UInt64, expectedLevel UInt64, haveLevel UInt64)
     attributes
         noInline
-    print("File: \042", file, "\042, line: ", line, ". Wrong level. (expected - ", expectedLevel, ", have - ", haveLevel, ")\n")
-    exit()
+    panic("File: \042".join(file, "\042, line: ", line.toString(), ". Wrong level. (expected - ", expectedLevel.toString(), ", have - ", haveLevel.toString(), ")\n"))
 
 proc errorNotExpectedToken(have Token, expected [UInt8])
     attributes
         noInline
-    print(have.coordinatesToString())
     if expected == ""
-        then print("\042", have[], "\042 not expected.\n")
-        else print("Expected \042", expected, "\042 but there is the \042", have[], "\042.\n")
-    exit()
+        then panic(have.coordinatesToString().join("\042", have[], "\042 not expected.\n"))
+        else panic(have.coordinatesToString().join("Expected \042", expected, "\042 but there is the \042", have[], "\042.\n"))
 
 proc errorNotExpectedEOL(lastToken Token, expected [UInt8])
     attributes
@@ -55,116 +46,100 @@ proc errorNotExpectedEOL(lastToken Token, expected [UInt8])
     lastPartOfMessage .= select(expected == "", "Unexpected end of line.\n", " \042" + expected + "\042 was expected but the end of the line was found.\n")
     unexistedToken := lastToken
     unexistedToken:row += unexistedToken[].getLength()
-    print(unexistedToken.coordinatesToString(), lastPartOfMessage)
-    exit()
+    panic(unexistedToken.coordinatesToString() + lastPartOfMessage)
 
 proc errorTabNotAllowed(file [UInt8], line UInt64, row UInt64)
     attributes
         noInline
-    print("File: \042", file, "\042, line: ", line, ", row: ", row, ". The tab character is not allowed to format text.\n")
-    exit()
+    panic("File: \042".join(file, "\042, line: ", line.toString(), ", row: ", row.toString(), ". The tab character is not allowed to format text.\n"))
 
 proc errorAlreadyExist(name Token, whatExist [UInt8])
     attributes
         noInline
-    print(name.coordinatesToString(), "The ", whatExist, " \042", name[], "\042 already exists.\n")
-    exit()
+    panic(name.coordinatesToString().join("The ", whatExist, " \042", name[], "\042 already exists.\n"))
 
 proc errorWrongName(name Token, nameOwner [UInt8])
     attributes
         noInline
-    print(name.coordinatesToString(), "Wrong ", nameOwner, " name. (", name[], ")\n")
-    exit()
+    panic(name.coordinatesToString().join("Wrong ", nameOwner, " name. (", name[], ")\n"))
 
 proc errorExpectSubBlock(file [UInt8], line UInt64)
     attributes
         noInline
-    print("File: \042", file, "\042, line: ", line, ". A sub block was expected.\n")
-    exit()
+    panic("File: \042".join(file, "\042, line: ", line.toString(), ". A sub block was expected.\n"))
 
 proc errorNotExist(name Token, whatNotExist [UInt8])
     attributes
         noInline
-    print(name.coordinatesToString(), "The ", whatNotExist, " \042", name[], "\042 does not exist.\n")
-    exit()
+    panic(name.coordinatesToString().join("The ", whatNotExist, " \042", name[], "\042 does not exist.\n"))
 
 proc errorSeveralVariableToFunction(argument1 Token, argument2 Token)
     attributes
         noInline
-    print(argument1.coordinatesToString(), "You cannot pass a variable several times to a function if it is passed as mutable even once.\narguments:\n1 - ", argument1[], "\n2 - ", argument2[], "\n")
-    exit()
+    panic(argument1.coordinatesToString().join("You cannot pass a variable several times to a function if it is passed as mutable even once.\narguments:\n1 - ", argument1[], "\n2 - ", argument2[], "\n"))
 
 proc errorExpectMutable(coordinates Token)
     attributes
         noInline
-    print(coordinates.coordinatesToString(), "A mutable object was expected.\n")
-    exit()
+    panic(coordinates.coordinatesToString() + "A mutable object was expected.\n")
 
 proc errorRecursiveType(type Token)
     attributes
         noInline
-    print(type.coordinatesToString(), "Type \042", type[], "\042 is recursive.\n")
-    exit()
+    panic(type.coordinatesToString().join("Type \042", type[], "\042 is recursive.\n"))
 
 proc errorWrongType(type Token)
     attributes
         noInline
-    print(type.coordinatesToString(), "The type \042", type[], "\042 is wrong.\n")
-    exit()
+    panic(type.coordinatesToString().join("The type \042", type[], "\042 is wrong.\n"))
 
 proc errorSeveralSuitableFunctions(name Token, allSuitable [Function])
     attributes
         noInline
-    print(name.coordinatesToString(), "Several functions named \042", name[], "\042 are suitable.\nFunctions:\n")
+    message := name.coordinatesToString().join("Several functions named \042", name[], "\042 are suitable.\nFunctions:\n")
     parse _, function <- allSuitable
-        printLn(function.name.coordinatesToString())
-    exit()
+        message:join(function.name.coordinatesToString(), "\n")
+    panic(message)
 
 proc errorFunctionNotExist(name Token, isFunction Bool, arguments [Operand])
     attributes
         noInline
-    print(name.coordinatesToString(), "The ", select(isFunction, "function", "procedure"), " \042", name[], "\042 does not exist.\n")
+    message := name.coordinatesToString().join("The ", select(isFunction, "function", "procedure"), " \042", name[], "\042 does not exist.\n")
     argumentsStr := ""
     if arguments.getLength() != 0
         then
             parse _, argument <- arguments
                 argumentsStr += argument.type.toToken()[] + ", "
             argumentsStr = argumentsStr.getAllExceptLastN(2)
-    print("arguments - (", argumentsStr, ")\n")
-    exit()
+    message:join("arguments - (", argumentsStr, ")\n")
+    panic(message)
 
 proc errorNotResultType(name Token)
     attributes
         noInline
-    print(name.coordinatesToString(), "The function \042", name[], "\042 does not define the type of result.\n")
-    exit()
+    panic(name.coordinatesToString().join("The function \042", name[], "\042 does not define the type of result.\n"))
 
 proc errorIncorrectFloat(arg Token)
     attributes
         noInline
-    print(arg.coordinatesToString(), "\042", arg[], "\042 is an incorrect floating point number.\n")
-    exit()
+    panic(arg.coordinatesToString().join("\042", arg[], "\042 is an incorrect floating point number.\n"))
 
 proc errorBreakOrContinueToDeep(coordinates Token)
     attributes
         noInline
-    print(coordinates.coordinatesToString(), "Not enough blocks.\n")
-    exit()
+    panic(coordinates.coordinatesToString() + "Not enough blocks.\n")
 
 proc errorCantWriteToFile(file [UInt8])
     attributes
         noInline
-    print("It is not possible to write to the file \042", file, "\042.\n")
-    exit()
+    panic("It is not possible to write to the file \042".join(file, "\042.\n"))
 
 proc errorInvalidNumberOfArguments(coordinates Token)
     attributes
         noInline
-    print(coordinates.coordinatesToString(), "Invalid number of arguments.")
-    exit()
+    panic(coordinates.coordinatesToString() + "Invalid number of arguments.")
 
 proc errorWrongArguments(coordinates Token)
     attributes
         noInline
-    print(coordinates.coordinatesToString(), "Arguments do not match the function.")
-    exit()
+    panic(coordinates.coordinatesToString() + "Arguments do not match the function.")
