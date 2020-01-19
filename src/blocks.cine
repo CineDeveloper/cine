@@ -49,14 +49,24 @@ func getTypeMembers(blocks [Block], argumets [[UInt8]]) Map([UInt8], TypeMember)
                 then errorAlreadyExist(member.name, "type member")
             result:add(member.name[], member)
 
-func getFlags(blocks [Block]) [Pair(Token, [UInt8])]
+func getFlags(blocks [Block]) [Pair(Token, Flag)]
     parse _, block <- blocks
-        block.noSubBlocks!()
+        block.subBlocks!()
         tokenIndex := 0
         name .= block.getFlagName(tokenIndex)
         description .= block.getString(tokenIndex)
         block.eol!(tokenIndex)
-        result += Pair(Token, [UInt8]).create(name, description)
+        variants := [[UInt8]]
+        parse _, variantBlock <- block.subBlocks
+            variantBlock.noSubBlocks!()
+            tokenIndex = 0
+            newVariant .= variantBlock.getString(tokenIndex)
+            variantBlock.eol!(tokenIndex)
+            parse _, existedVariant <- variants
+                if < existedVariant == newVariant
+                    then errorAlreadyExist(variantBlock.line[0], "flag variant")
+            variants += newVariant
+        result += #result[0].create(name, Flag{description: description, variants: variants})
 
 func getFunctionAttributes(attributes [Block]) FunctionAttributes
     parse _, attributeBlock <- attributes

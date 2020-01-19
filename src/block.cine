@@ -939,45 +939,38 @@ func compileIf(ifBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], N
 func compileFlag(flagBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     result = "\t{\n"
     flagBlock.subBlocks!()
-    tokenIndex := 0
-    flagBlock.subBlocks[0].next!(tokenIndex, "then")
-    if flagBlock.subBlocks.getLength() == 2
-        then
-            tokenIndex = 0
-            flagBlock.subBlocks[1].next!(tokenIndex, "else")
-        else if < flagBlock.subBlocks.getLength() > 2
-            then errorNotExpectedToken(flagBlock.subBlocks[2].line[0], "")
-    tokenIndex = 1
+    tokenIndex := 1
     flagName .= flagBlock.getFlagName(tokenIndex)
     flagBlock.next!(tokenIndex, "is")
-    flagBlock.next!(tokenIndex, "set")
-    flagBlock.next!(tokenIndex, "?")
     flagBlock.eol!(tokenIndex)
-    flagDescription .= data.flags[flagName[]]
-    if > flagDescription.item?()
-        then compiledData:flags:add(flagName[], flagDescription[])
+    flagBox .= data.flags[flagName[]]
+    if > flagBox.item?()
+        then compiledData:flags:add(flagName[], flagBox[])
         else errorNotExist(flagName, "flag")
-    thenBlock .= flagBlock.subBlocks[0]
-    result:join("\t#if __FLAG_", flagName[], " == 1 \n")
-    if thenBlock.line.getLength() != 1
-        then
-            newBlock .= Block{line: thenBlock.line.getAllExceptFirst(), subBlocks: thenBlock.subBlocks}
-            result += newBlock.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
-        else parse _, functionExpression <- thenBlock.subBlocks
-            result += functionExpression.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
-    result += namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData)
-    if flagBlock.subBlocks.getLength() == 2
-        then
-            elseBlock .= flagBlock.subBlocks[1]
-            result += "\t#else\n"
-            if elseBlock.line.getLength() != 1
+    variants := [[UInt8]]
+    parse _, variantBlock <- flagBlock.subBlocks
+        variantBlock.subBlocks!()
+        tokenIndex = 0
+        newVariant .= variantBlock.getString(tokenIndex)
+        variantBlock.eol!(tokenIndex)
+        parse _, existedVariant <- variants
+            if < existedVariant == newVariant
+                then errorAlreadyExist(variantBlock.line[0], "flag variant")
+        variants += newVariant
+        result:join("\t#if __FLAG_", flagName[], " == ")
+        variantIsValid := false
+        parse index, validVariant <- flagBox[].variants
+            if newVariant == validVariant
                 then
-                    newBlock .= Block{line: elseBlock.line.getAllExceptFirst(), subBlocks: elseBlock.subBlocks}
-                    result += newBlock.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
-                else parse _, functionExpression <- elseBlock.subBlocks
-                    result += functionExpression.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
-            result += namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData)
-    result += "\t#endif\n\t}\n"
+                    variantIsValid = true
+                    result:join(index.toString(), "\n")
+                    break
+        if < !variantIsValid
+            then errorNotExist(variantBlock.line[0], "flag variant")
+        parse _, functionExpression <- variantBlock.subBlocks
+            result += functionExpression.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
+        result:join(namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t#endif\n")
+    result += "\t}\n"
 
 func compileHaveLink(haveLinkBlock Block, currentLevel UInt64, :namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :breakCounter UInt64, :continueCounter UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     tokenIndex := 1

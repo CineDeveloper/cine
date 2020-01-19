@@ -1,0 +1,19 @@
+type Flag
+    description [UInt8]
+    variants [[UInt8]]
+
+rules
+    1 = type == Flag
+    join 1 Binary
+
+proc addEq(:data BinaryData, flag_ Flag)
+    attributes
+        alwaysInline
+    data += flag_.description
+    data += flag_.variants
+
+func getFromBinaryData(flag_ Flag, data BinaryData, :position UInt64) flag_
+    attributes
+        alwaysInline
+    result:description = [UInt8].getFromBinaryData(data, position)
+    result:variants = [[UInt8]].getFromBinaryData(data, position)

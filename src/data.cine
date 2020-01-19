@@ -5,7 +5,7 @@ type Data
     groups Set([UInt8])
     enums Map([UInt8], UInt32)
     globalRules [[Block]]
-    flags Map([UInt8], [UInt8])
+    flags Map([UInt8], Flag)
 
 func initData(blocks [Block]) Data
     result:createBuiltIn()
@@ -133,7 +133,7 @@ proc groupExist!(data Data, name Token)
     if < !data.groups[name[]]
         then errorNotExist(name, "group")
 
-proc add(:data Data, flags [Pair(Token, [UInt8])])
+proc add(:data Data, flags [Pair(Token, Flag)])
     parse _, flag_ <- flags
         if < data.flags[flag_.first[]].item?()
             then errorAlreadyExist(flag_.first, "flag")

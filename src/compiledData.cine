@@ -4,7 +4,7 @@ type CompiledData
     cLibs, cSliceTypes, cFunctions, cFunctionSignatures [UInt8]
     cTypes [Triple(UInt64, [UInt64], [UInt8])]
     mainFunctionCName [UInt8]
-    flags Map([UInt8], [UInt8])
+    flags Map([UInt8], Flag)
 
 proc writeToFile(compiledData CompiledData, outputFileName [UInt8], flagsFileName [UInt8])
     outputFile := ""
@@ -57,8 +57,10 @@ proc writeToFile(compiledData CompiledData, outputFileName [UInt8], flagsFileNam
     }
     if < !outputFile.convertTo(BinaryData).writeToFile(outputFileName)
         then errorCantWriteToFile(outputFileName)
-    flagsFile := ""
-    parse name, description <- compiledData.flags
-        flagsFile:join(name, " ", description, "\n")
-    if < !flagsFile.convertTo(BinaryData).writeToFile(flagsFileName)
+    flagsFile := BinaryData
+    flagsFile += compiledData.flags.getLength()
+    parse name, flag_ <- compiledData.flags
+        flagsFile += name
+        flagsFile += flag_
+    if < !flagsFile.writeToFile(flagsFileName)
         then errorCantWriteToFile(flagsFileName)
