@@ -7,11 +7,11 @@ func helpMessage() [UInt8]
     attributes
         alwaysInline
     result = "Cine compiler\n"{
-        "\t-i or --input FILE_NAMES - set input file names(space is separator)\n"
-        "\t-o or --output FILE_NAME - set output file name\n"
-        "\t-f or --flags FILE_NAME - set the name of the file that contains the flags\n"
-        "\t-h or --help - show help\n"
-        "\t-v or --version - show version\n"
+        "    -i or --input FILE_NAMES - set input file names(space is separator)\n"
+        "    -o or --output FILE_NAME - set output file name\n"
+        "    -f or --flags FILE_NAME - set the name of the file that contains the flags\n"
+        "    -h or --help - show help\n"
+        "    -v or --version - show version\n"
     }
 
 func getFiles() Triple([[UInt8]], [UInt8], [UInt8])

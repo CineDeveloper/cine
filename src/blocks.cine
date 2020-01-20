@@ -78,6 +78,10 @@ func getFunctionAttributes(attributes [Block]) FunctionAttributes
                 if < result.deprecated
                     then errorAlreadyExist(attribute, "function attribute")
                 result:deprecated = true
+            "singleRun"
+                if < result.singleRun
+                    then errorAlreadyExist(attribute, "function attribute")
+                result:singleRun = true
             "alwaysInline"
                 if < result.alwaysInline
                     then errorAlreadyExist(attribute, "function attribute")

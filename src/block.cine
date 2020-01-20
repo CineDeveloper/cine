@@ -493,7 +493,7 @@ proc notEOL!(block Block, tokenIndex UInt64)
 func compileReturn(returnBlock Block, namedOperands Map([UInt8], NamedOperand), :registersCount UInt64, :waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData) [UInt8]
     returnBlock.noSubBlocks!()
     resultOperandBox .= namedOperands["result"]
-    resultOperand .=  select(resultOperandBox.item?(), resultOperandBox[].operand, Operand)
+    resultOperand .= select(resultOperandBox.item?(), resultOperandBox[].operand, Operand)
     if returnBlock.line.getLength() > 1
         then
             if < resultOperandBox.empty?()
@@ -511,7 +511,9 @@ func compileReturn(returnBlock Block, namedOperands Map([UInt8], NamedOperand), 
                         operand = operand.toReadOnly()
                         result += operand.useOperand(registersCount, waitingFunctions, data, compiledData)
             result:join(tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData), resultOperand.setOperand(operand, registersCount, waitingFunctions, data, compiledData))
-    result:join(namedOperands.freeOperands(1, registersCount, waitingFunctions, data, compiledData),{
+    result:join{
+        (namedOperands.freeOperands(1, registersCount, waitingFunctions, data, compiledData),
+        select(resultOperand.static, resultOperand.useOperand(registersCount, waitingFunctions, data, compiledData), ""),
         select(resultOperand.value == "", "\treturn;\n", "\treturn result_;\n"))
     }
 
@@ -542,8 +544,8 @@ func compileFor(forBlock Block, currentLevel UInt64, :namedOperands Map([UInt8],
     if initExpression.line.getLength() != 0
         then result += initExpression.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
     if endExpression.line.getLength() != 0
-        then result:join({
-                "\tbool __firstTime = true;\n\tfor (;;){\n\tif (!__firstTime){\n",
+        then result:join{
+                ("\tbool __firstTime = true;\n\tfor (;;){\n\tif (!__firstTime){\n",
                 endExpression.compileEqExpression(namedOperands, registersCount, waitingFunctions, data, compiledData),
                 "\t} else {\t__firstTime = false;}\n")
             }
@@ -747,7 +749,8 @@ func compileCase(caseBlock Block, currentLevel UInt64, :namedOperands Map([UInt8
                         result += "\t{\n"
                         parse _, functionExpression <- functionExpressions
                             result += functionExpression.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
-                        result:join(namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n",{
+                        result:join{
+                            (namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n",
                             select(fallthrough_, "\t/* fall through */\n", "\tbreak;\n"))
                         }
         allVariantsBlocks[0].line[0][][0].lower?()
@@ -786,7 +789,8 @@ func compileCase(caseBlock Block, currentLevel UInt64, :namedOperands Map([UInt8
                         result += "\t{\n"
                         parse _, functionExpression <- functionExpressions
                             result += functionExpression.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
-                        result:join(namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n",{
+                        result:join{
+                            (namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n",
                             select(fallthrough_, "\t/* fall through */\n", "\tbreak;\n"))
                         }
         default
@@ -858,7 +862,8 @@ func compileCase(caseBlock Block, currentLevel UInt64, :namedOperands Map([UInt8
                         result += "\t{\n"
                         parse _, functionExpression <- functionExpressions
                             result += functionExpression.compile(currentLevel + 1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
-                        result:join(namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n",{
+                        result:join{
+                            (namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData), "\t}\n",
                             select(fallthrough_, "\t/* fall through */\n", "\tbreak;\n"))
                         }
     if haveDefault
@@ -1029,7 +1034,8 @@ func compileParse(parseBlock Block, currentLevel UInt64, :namedOperands Map([UIn
     result += tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData)
     breakCounter++
     continueCounter++
-    code_firstIndexOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_first"),{
+    code_firstIndexOperand .= FunctionInExpression{
+        {name: parsedOperand.expressionForErrors.replaceValue("parse_first"),
         arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}}}
         .toOperand(registersCount, waitingFunctions, true, data, compiledData)
     }
@@ -1038,24 +1044,27 @@ func compileParse(parseBlock Block, currentLevel UInt64, :namedOperands Map([UIn
     hiddenIndexOperand := code_firstIndexOperand.second
     hiddenIndexOperand:value = code_hiddenIndexName.second
     namedOperands:addHidenOperand(hiddenIndexOperand, currentLevel + 1)
-    code_nextIndexOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_next"),{
+    code_nextIndexOperand .= FunctionInExpression{
+        {name: parsedOperand.expressionForErrors.replaceValue("parse_next"),
         arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
         .toOperand(registersCount, waitingFunctions, true, data, compiledData)
     }
-    result:join({
-        "\tbool __firstTime = true;\n\tfor (;;){\n\tif (!__firstTime){\n",
+    result:join{
+        ("\tbool __firstTime = true;\n\tfor (;;){\n\tif (!__firstTime){\n",
         hiddenIndexOperand.freeOperand(registersCount, waitingFunctions, data, compiledData),
         code_nextIndexOperand.first, "\t", hiddenIndexOperand.value, " = ",
         code_nextIndexOperand.second.value, ";\n\t} else {\t__firstTime = false;}\n")
     }
-    code_predicate .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_haveItem?"),{
+    code_predicate .= FunctionInExpression{
+        {name: parsedOperand.expressionForErrors.replaceValue("parse_haveItem?"),
         arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
         .toOperand(registersCount, waitingFunctions, true, data, compiledData)
     }
     result:join(code_predicate.first,  "\tif (!", code_predicate.second.value, "){break;};\n")
     if keyName[] != ""
         then
-            code_keyOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_key"),{
+            code_keyOperand .= FunctionInExpression{
+                {name: parsedOperand.expressionForErrors.replaceValue("parse_key"),
                 arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
                 .toOperand(registersCount, waitingFunctions, true, data, compiledData)
             }
@@ -1065,7 +1074,8 @@ func compileParse(parseBlock Block, currentLevel UInt64, :namedOperands Map([UIn
             namedOperands:addNewOperand(keyName, code_keyOperand.second, currentLevel + 2)
     if itemName[] != ""
         then
-            code_itemOperand .= FunctionInExpression{name: parsedOperand.expressionForErrors.replaceValue("parse_item"),{
+            code_itemOperand .= FunctionInExpression{
+                {name: parsedOperand.expressionForErrors.replaceValue("parse_item"),
                 arguments: [FunctionExpression]{FunctionExpression{expression: [Fluid]{parsedOperand.toFluid()}}, FunctionExpression{expression: [Fluid]{hiddenIndexOperand.toFluid()}}}}
                 .toOperand(registersCount, waitingFunctions, true, data, compiledData)
             }
@@ -1075,8 +1085,8 @@ func compileParse(parseBlock Block, currentLevel UInt64, :namedOperands Map([UIn
             namedOperands:addNewOperand(itemName, code_itemOperand.second, currentLevel + 2)
     parse _, functionExpression <- parseBlock.subBlocks
         result += functionExpression.compile(currentLevel + 2, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
-    result:join({
-        namedOperands:deleteLevel(currentLevel + 2, registersCount, waitingFunctions, data, compiledData),
+    result:join{
+        (namedOperands:deleteLevel(currentLevel + 2, registersCount, waitingFunctions, data, compiledData),
         "\t}\n",
         namedOperands:deleteLevel(currentLevel + 1, registersCount, waitingFunctions, data, compiledData))
     }
@@ -1143,8 +1153,8 @@ func compileEqExpression(expressionBlock Block, namedOperands Map([UInt8], Named
                             then
                                 rightOperand = rightOperand.toReadOnly()
                                 result += rightOperand.useOperand(registersCount, waitingFunctions, data, compiledData)
-                    result:join({
-                        tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData),
+                    result:join{
+                        (tmpOperands:freeOperands(registersCount, waitingFunctions, data, compiledData),
                         leftOperand.setOperand(rightOperand, registersCount, waitingFunctions, data, compiledData))
                     }
                 else
