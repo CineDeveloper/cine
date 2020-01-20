@@ -308,18 +308,13 @@ func compute0PriorityOperations(expression FunctionExpression, :registersCount U
                             then
                                 itemType .= operandCreator.type.arguments[0].compile(data, compiledData)
                                 itemsLength .= operandCreator.membersValues.getLength().toString()
-                                code:join({
-                                    "\t", register, " = (", type.cType, "){.length = ", itemsLength, ", ",
+                                code:join{
+                                    ("\t", register, " = (", type.cType, "){.length = ", itemsLength, ", ",
                                     ".capacity = ", itemsLength, ", ",
-                                    ".initCapacity = ", itemsLength, ", ")
-                                }
-                                code:join({
+                                    ".initCapacity = ", itemsLength, ", ",
                                     ".array = (", itemType.cType, "*)(calloc(", itemsLength, ", sizeof(", itemType.cType, "))), ",
                                     ".useCounter = (uint64_t*)(malloc(sizeof(uint64_t))), .isString = false};\n\t",
-                                    register, ".items = ", register, ".array;\n\t")
-
-                                }
-                                code:join({
+                                    register, ".items = ", register, ".array;\n\t",
                                     "if (__builtin_expect((", register, ".array == NULL) || (", register, ".useCounter == NULL), false)){\n\tfprintf(stderr, \042Not enought memory.\\n\042);\n\tabort();\n\t}\n\t*(",
                                     register, ".useCounter) = 1;\n")
                                 }

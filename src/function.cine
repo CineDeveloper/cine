@@ -76,19 +76,28 @@ proc compile(function Function, data Data, arguments [Operand], :waitingFunction
     functionSignature += ')'
     compiledData:cFunctionSignatures:join(functionSignature, ";\n")
     compiledData:cFunctions:join(functionSignature, " {\n")
-    namedOperands := compilingFunction.getNamedOperands(arguments, resultType)
+    if function.attributes.singleRun
+        then compiledData:cFunctions += "\tstatic bool __function__first__run = true;\n"
+    if compilingFunction.type.result.getLength() == 1
+        then compiledData:cFunctions:join(select(function.attributes.singleRun, "\tstatic ", "\t"), resultType.cType, " result_ = (", resultType.cType, "){0};\n")
+    if function.attributes.singleRun
+        then compiledData:cFunctions += "\tif (__function__first__run){\n\t__function__first__run = false;\n"
+    namedOperands := compilingFunction.getNamedOperands(arguments, resultType, function.attributes.singleRun)
     breakCounter := 0
     continueCounter := 0
     registersCount := 0
     compiledData:cFunctions += "\tint __breakCounter = 0;\n\tint __continueCounter = 0;\n"
-    if compilingFunction.type.result.getLength() == 1
-        then compiledData:cFunctions:join("\t", resultType.cType, " result_ = (", resultType.cType, "){0};\n")
     parse _, functionExpression <- function.body
         compiledData:cFunctions += functionExpression.compile(1, namedOperands, registersCount, breakCounter, continueCounter, waitingFunctions, data, compiledData)
     compiledData:cFunctions += namedOperands:deleteLevel(1, registersCount, waitingFunctions, data, compiledData)
     if compilingFunction.type.result.getLength() == 1
-        then compiledData:cFunctions += "\treturn result_;\n}\n\n"
-        else compiledData:cFunctions += "}\n\n"
+        then if function.attributes.singleRun
+            then compiledData:cFunctions:join{
+                    (namedOperands["result"][].operand.useOperand(registersCount, waitingFunctions, data, compiledData),
+                    "\t}\n\treturn result_;\n}\n\n")
+                }
+            else compiledData:cFunctions += "\treturn result_;\n}\n\n"
+        else compiledData:cFunctions += select(function.attributes.singleRun, "\t}\n}\n\n", "}\n\n")
     compiledData:functions:add(functionCName, compilingFunction)
 
 proc compile(:waitingFunctions [Pair(Function, [Operand])], data Data, :compiledData CompiledData)

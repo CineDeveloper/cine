@@ -12,8 +12,8 @@ proc writeToFile(compiledData CompiledData, outputFileName [UInt8], flagsFileNam
     parse _, cLib <- bltInCLibs
         if !compiledData.cLibs.contain?(cLib)
             then outputFile:join(cLib, "\n")
-    outputFile:join({
-        compiledData.cLibs,
+    outputFile:join{
+        (compiledData.cLibs,
         "\nstatic uint64_t __staticRandomNumber__;\n\nstatic uint64_t __argc;\nstatic char** __argv;\n\n",
         compiledData.cSliceTypes)
     }
@@ -42,8 +42,8 @@ proc writeToFile(compiledData CompiledData, outputFileName [UInt8], flagsFileNam
                         addTypes = notAddTypes
                         notAddTypes = [Triple(UInt64, [UInt64], [UInt8])]
                         currentTypeIndex = 0
-    outputFile:join({
-        "\n",
+    outputFile:join{
+        ("\n",
         compiledData.cFunctionSignatures,
         "\nint main(int argc, char** argv) {\n"
         "\tif (sizeof(float) != 4 || sizeof(double) != 8 || sizeof(bool) != 1) {\n"

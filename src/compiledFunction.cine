@@ -4,7 +4,7 @@ type CompiledFunction
     cName [UInt8]
     fullCompiled Bool
 
-func getNamedOperands(compilingFunction CompiledFunction, arguments [Operand], resultType CompiledType) Map([UInt8], NamedOperand)
+func getNamedOperands(compilingFunction CompiledFunction, arguments [Operand], resultType CompiledType, resultIsStatic Bool) Map([UInt8], NamedOperand)
     parse argumentIndex, argument <- arguments
         argumentName .= compilingFunction.argumentsNames[argumentIndex]
         mutArgument := argument
@@ -14,5 +14,5 @@ func getNamedOperands(compilingFunction CompiledFunction, arguments [Operand], r
         result:addNewOperand(Token{value:argumentName}, mutArgument, 0)
     if compilingFunction.type.result.getLength() == 1
         then
-            resultOperand .= Operand{value: "&result_", cType: resultType.cType, type: compilingFunction.type.result[0], typeNumber: resultType.typeNumber, haveLink:resultType.haveLink, mutable: true}
+            resultOperand .= Operand{value: "&result_", cType: resultType.cType, type: compilingFunction.type.result[0], typeNumber: resultType.typeNumber, haveLink:resultType.haveLink, mutable: true, static: resultIsStatic}
             result:addNewOperand(Token{value:"result"}, resultOperand, 0)

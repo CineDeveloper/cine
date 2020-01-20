@@ -3,7 +3,7 @@ type Operand
     expressionForErrors Token
     type OperandType
     typeNumber UInt64
-    mutable, constant, haveLink Bool
+    mutable, constant, haveLink, static Bool
 
 func toReadOnly(operand Operand) Operand
     result = operand
