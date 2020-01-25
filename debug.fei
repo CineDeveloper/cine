@@ -1,12 +1,7 @@
-sources
-    "-standart"
-    "./src/"
-    "./main.cine"
-
+program "cine"
 flags
     debug = "enable"
 
 version = "0.1"
 
 cCompilerOptions = "-march=native -O1 -lm -Wall -Wpedantic -Wextra -Wno-visibility -Wno-missing-braces -Wno-gnu-compound-literal-initializer -Wno-unused-variable -Wno-unused-parameter -Wno-format-security -Wno-implicitly-unsigned-literal -Wno-unused-function"
-executable = "cine"

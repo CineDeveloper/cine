@@ -1,12 +1,7 @@
-sources
-    "-standart"
-    "./src/"
-    "./main.cine"
-
+program "cine"
 flags
     debug = "disable"
 
 version = "0.1"
 
 cCompilerOptions = "-march=native -O2 -lm -w"
-executable = "cine"
